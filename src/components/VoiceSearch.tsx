@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { searchAyat } from "@/lib/quranApi";
+import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/outline";
 // import { Mic, MicOff, Search, Loader2 } from "lucide-react";
 
 export default function VoiceSearch() {
@@ -83,10 +84,12 @@ export default function VoiceSearch() {
 				disabled={isSearching}
 			>
 				<div className={clsx(
-					"w-6 h-6 flex items-center justify-center text-lg",
+					"w-6 h-6 flex items-center justify-center",
 					listening && "animate-pulse"
 				)}>
-					{listening ? "🔴" : isSearching ? "⏳" : "🎤"}
+					{listening ? <StopIcon className="w-6 h-6" /> : isSearching ? (
+						<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+					) : <MicrophoneIcon className="w-6 h-6" />}
 				</div>
 				<span className="text-lg">
 					{listening ? "Listening… Click to stop" : isSearching ? "Searching..." : "Press and speak to search"}
@@ -95,7 +98,7 @@ export default function VoiceSearch() {
 			
 			{transcript && (
 				<p className="mt-4 text-sm opacity-80">
-					<strong>You said:</strong> "{transcript}"
+					<strong>You said:</strong> &ldquo;{transcript}&rdquo;
 				</p>
 			)}
 			

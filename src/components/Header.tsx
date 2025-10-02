@@ -8,6 +8,7 @@ import clsx from "clsx";
 const navigation = [
 	{ name: "Voice Search", href: "/" },
 	{ name: "Search", href: "/search" },
+	{ name: "Identify", href: "/identify" },
 	{ name: "Bookmarks", href: "/bookmarks" },
 	{ name: "Recite", href: "/recite" },
 	{ name: "History", href: "/history" },

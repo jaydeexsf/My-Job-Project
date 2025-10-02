@@ -2,6 +2,12 @@ import VoiceSearch from "@/components/VoiceSearch";
 import AudioPlayer from "@/components/AudioPlayer";
 import { Suspense } from "react";
 import Link from "next/link";
+import { 
+  MicrophoneIcon, 
+  BookOpenIcon, 
+  ChartBarIcon,
+  MusicalNoteIcon
+} from "@heroicons/react/24/outline";
 // import { Mic, BookOpen, BarChart3 } from "lucide-react";
 
 export default function Home() {
@@ -80,7 +86,7 @@ export default function Home() {
             {/* Voice Search Feature */}
             <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
               <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <span className="text-white text-xl">🎤</span>
+                <MicrophoneIcon className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Voice Search</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
@@ -94,7 +100,7 @@ export default function Home() {
             {/* Bookmarks Feature */}
             <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
               <div className="w-12 h-12 bg-teal-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <span className="text-white text-xl">📖</span>
+                <BookOpenIcon className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Smart Bookmarks</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
@@ -108,7 +114,7 @@ export default function Home() {
             {/* Recitation Analysis */}
             <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
               <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <span className="text-white text-xl">📊</span>
+                <ChartBarIcon className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Recitation Analysis</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
@@ -116,6 +122,20 @@ export default function Home() {
               </p>
               <Link href="/recite" className="text-slate-600 dark:text-slate-400 font-medium hover:underline">
                 Start Reciting →
+              </Link>
+            </div>
+
+            {/* Audio Identifier - Shazam-like Feature */}
+            <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 md:col-span-2 lg:col-span-1">
+              <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <MusicalNoteIcon className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Verse Identifier</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
+                Like Shazam for Quran! Record or upload any recitation and instantly identify the verse.
+              </p>
+              <Link href="/identify" className="text-purple-600 dark:text-purple-400 font-medium hover:underline">
+                Identify Verse →
               </Link>
             </div>
           </div>
