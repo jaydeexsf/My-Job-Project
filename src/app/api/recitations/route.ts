@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase, getMongoUri } from "@/lib/db";
 import { RecitationHistoryModel } from "@/lib/models";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
 	try {
 		const conn = await connectToDatabase(getMongoUri());
 		if (!conn) {

@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET method for quick stats
-export async function GET(request: NextRequest) {
+export async function GET() {
 	try {
 		const conn = await connectToDatabase(getMongoUri());
 		if (!conn) {
