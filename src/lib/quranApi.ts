@@ -1,11 +1,24 @@
-const DEFAULT_BASE = process.env.QURAN_API_BASE || "https://api.quran.foundation";
-const API_KEY = process.env.QURAN_API_KEY;
+const OAUTH_BASE = process.env.QURAN_API_BASE || "https://prelive-oauth2.quran.foundation";
+const API_BASE = "https://apis-prelive.quran.foundation/content/api/v4";
+const CLIENT_ID = process.env.QURAN_API_CLIENT_ID;
+const CLIENT_SECRET = process.env.QURAN_API_CLIENT_SECRET;
+
+// Token cache
+let accessToken: string | null = null;
+let tokenExpiry: number = 0;
 
 type FetchOptions = {
 	path: string;
 	query?: Record<string, string | number | boolean | undefined>;
 	init?: RequestInit;
 };
+
+interface TokenResponse {
+	access_token: string;
+	token_type: string;
+	expires_in: number;
+	scope: string;
+}
 
 // Fallback Quran data for when API is not available
 const fallbackQuranData = {
@@ -24,6 +37,45 @@ const fallbackQuranData = {
 	}
 };
 
+// Get OAuth2 access token
+async function getAccessToken(): Promise<string | null> {
+	if (!CLIENT_ID || !CLIENT_SECRET) {
+		console.warn('Quran API credentials not configured');
+		return null;
+	}
+
+	// Return cached token if still valid
+	if (accessToken && Date.now() < tokenExpiry) {
+		return accessToken;
+	}
+
+	try {
+		const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+		
+		const response = await fetch(`${OAUTH_BASE}/oauth2/token`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Basic ${auth}`,
+				'Content-Type': 'application/x-www-form-urlencoded'
+			},
+			body: 'grant_type=client_credentials&scope=content'
+		});
+
+		if (!response.ok) {
+			throw new Error(`OAuth error ${response.status}`);
+		}
+
+		const data = await response.json();
+		accessToken = data.access_token;
+		tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // Refresh 1 min early
+		
+		return accessToken;
+	} catch (error) {
+		console.warn('Failed to get access token:', error);
+		return null;
+	}
+}
+
 export async function quranApiFetch<T>({ path, query, init }: FetchOptions): Promise<T> {
 	const qs = query
 		? "?" + new URLSearchParams(Object.entries(query).reduce((acc, [k, v]) => {
@@ -34,15 +86,21 @@ export async function quranApiFetch<T>({ path, query, init }: FetchOptions): Pro
 		: "";
 
 	try {
-		const res = await fetch(`${DEFAULT_BASE}${path}${qs}`, {
+		const token = await getAccessToken();
+		if (!token) {
+			throw new Error('No access token available');
+		}
+
+		const res = await fetch(`${API_BASE}${path}${qs}`, {
 			...init,
 			headers: {
 				"Content-Type": "application/json",
-				...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+				"x-auth-token": token,
+				"x-client-id": CLIENT_ID!,
 				...(init?.headers || {}),
 			},
-		cache: "force-cache",
-		next: { revalidate: 3600 }, // Cache for 1 hour for better performance
+			cache: "force-cache",
+			next: { revalidate: 3600 }, // Cache for 1 hour for better performance
 		});
 		if (!res.ok) {
 			const text = await res.text();
@@ -66,30 +124,38 @@ function getFallbackData(path: string, query?: Record<string, string | number | 
 		};
 	}
 	
-	if (path.includes('/surah/')) {
-		const surahMatch = path.match(/\/surah\/(\d+)/);
-		if (surahMatch) {
-			const surahNum = parseInt(surahMatch[1]);
+	if (path.includes('/chapters')) {
+		return {
+			chapters: Object.entries(fallbackQuranData.surahs).map(([id, surah]) => ({
+				id: parseInt(id),
+				name_simple: surah.name,
+				name_arabic: surah.name,
+				verses_count: surah.numberOfAyahs,
+				translated_name: { name: surah.englishName }
+			}))
+		};
+	}
+	
+	if (path.includes('/chapters/')) {
+		const chapterMatch = path.match(/\/chapters\/(\d+)/);
+		if (chapterMatch) {
+			const surahNum = parseInt(chapterMatch[1]);
 			const surah = fallbackQuranData.surahs[surahNum as keyof typeof fallbackQuranData.surahs];
 			if (surah) {
 				return {
-					number: surahNum,
-					name: surah.name,
-					englishName: surah.englishName,
-					numberOfAyahs: surah.numberOfAyahs,
-					ayahs: Object.entries(fallbackQuranData.ayahs)
-						.filter(([key]) => key.startsWith(`${surahNum}:`))
-						.map(([key, value]) => ({
-							number: parseInt(key.split(':')[1]),
-							text: value.text,
-							translation: value.translation
-						}))
+					chapter: {
+						id: surahNum,
+						name_simple: surah.name,
+						name_arabic: surah.name,
+						verses_count: surah.numberOfAyahs,
+						translated_name: { name: surah.englishName }
+					}
 				};
 			}
 		}
 	}
 	
-	if (path.includes('/audio/ayah')) {
+	if (path.includes('/audio')) {
 		return {
 			audioUrl: "/audio/sample-recitation.mp3",
 			reciter: "Sample Reciter"
@@ -99,21 +165,36 @@ function getFallbackData(path: string, query?: Record<string, string | number | 
 	return { message: "Fallback data - API not available" };
 }
 
-// Example helpers based on Quran Foundation API structure
+// Updated API helpers for Quran Foundation API v4
 export async function searchAyat(query: string) {
-	return quranApiFetch<any>({ path: "/v1/search", query: { q: query } });
+	return quranApiFetch<any>({ path: "/search", query: { q: query } });
+}
+
+export async function getAllChapters() {
+	return quranApiFetch<any>({ path: "/chapters" });
 }
 
 export async function getSurah(surah: number) {
-	return quranApiFetch<any>({ path: `/v1/surah/${surah}` });
+	const response = await quranApiFetch<any>({ path: `/chapters/${surah}` });
+	// Transform to match old format
+	if (response.chapter) {
+		return {
+			number: response.chapter.id,
+			name: response.chapter.name_simple,
+			englishName: response.chapter.translated_name?.name || response.chapter.name_simple,
+			numberOfAyahs: response.chapter.verses_count,
+			revelationType: response.chapter.revelation_place || 'Unknown'
+		};
+	}
+	return response;
 }
 
 export async function getAyah(surah: number, ayah: number) {
-	return quranApiFetch<any>({ path: `/v1/surah/${surah}/ayah/${ayah}` });
+	return quranApiFetch<any>({ path: `/chapters/${surah}/verses/${ayah}` });
 }
 
 export async function getAudioForAyah(surah: number, ayah: number, reciter?: string) {
-	return quranApiFetch<any>({ path: `/v1/audio/ayah`, query: { surah, ayah, reciter } });
+	return quranApiFetch<any>({ path: `/chapters/${surah}/verses/${ayah}/audio`, query: { reciter } });
 }
 
 

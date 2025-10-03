@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { quranApiFetch, getSurah, getAyah, getAudioForAyah } from '@/lib/quranApi';
+import { quranApiFetch, getSurah, getAyah, getAudioForAyah, getAllChapters } from '@/lib/quranApi';
 
 // Get all surahs list
 export async function GET(request: NextRequest) {
@@ -100,7 +100,23 @@ export async function POST(request: NextRequest) {
 
 // Helper functions
 async function getAllSurahs() {
-  // Return basic info for all 114 surahs
+  try {
+    // Use the new getAllChapters API
+    const response = await getAllChapters();
+    if (response.chapters) {
+      return response.chapters.map((chapter: any) => ({
+        number: chapter.id,
+        name: chapter.name_simple || chapter.name_arabic,
+        englishName: chapter.translated_name?.name || chapter.name_simple,
+        numberOfAyahs: chapter.verses_count,
+        revelationType: chapter.revelation_place || 'Unknown'
+      }));
+    }
+  } catch (error) {
+    console.warn('Failed to fetch all chapters:', error);
+  }
+
+  // Fallback to popular surahs if API fails
   const surahs = [];
   const popularSurahs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 18, 36, 55, 67, 112, 113, 114];
   
