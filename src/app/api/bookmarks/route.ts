@@ -1,68 +1,87 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase, getMongoUri, isDummyMode } from "@/lib/db";
+import { connectToDatabase, getMongoUri } from "@/lib/db";
 import { BookmarkModel } from "@/lib/models";
-import { getDummyBookmarks, addDummyBookmark, deleteDummyBookmark } from "@/lib/dummyData";
 
 export async function GET(req: NextRequest) {
-	const { searchParams } = new URL(req.url);
-	const userId = searchParams.get("userId") || undefined;
-	
-	if (isDummyMode()) {
-		const data = getDummyBookmarks(userId);
+	try {
+		const conn = await connectToDatabase(getMongoUri());
+		if (!conn) {
+			return NextResponse.json({ 
+				error: 'Database connection failed. Please ensure MongoDB is accessible.' 
+			}, { status: 500 });
+		}
+		
+		// Get ALL bookmarks from database, sorted by creation date
+		const data = await BookmarkModel.find({}).sort({ createdAt: -1 }).lean();
 		return NextResponse.json({ data });
+	} catch (error) {
+		console.error('Error fetching bookmarks:', error);
+		return NextResponse.json({ 
+			error: 'Failed to fetch bookmarks from database' 
+		}, { status: 500 });
 	}
-	
-	const conn = await connectToDatabase(getMongoUri());
-	if (!conn) {
-		const data = getDummyBookmarks(userId);
-		return NextResponse.json({ data });
-	}
-	
-	const data = await BookmarkModel.find(userId ? { userId } : {}).sort({ createdAt: -1 }).lean();
-	return NextResponse.json({ data });
 }
 
 export async function POST(req: NextRequest) {
-	const body = await req.json();
-	
-	if (isDummyMode()) {
-		const data = addDummyBookmark(body);
-		return NextResponse.json({ data });
+	try {
+		const body = await req.json();
+		
+		const conn = await connectToDatabase(getMongoUri());
+		if (!conn) {
+			return NextResponse.json({ 
+				error: 'Database connection failed. Please ensure MongoDB is accessible.' 
+			}, { status: 500 });
+		}
+		
+		// For global access, allow anyone to create bookmarks
+		const doc = await BookmarkModel.create(body);
+		return NextResponse.json({ data: doc });
+	} catch (error) {
+		console.error('Error creating bookmark:', error);
+		return NextResponse.json({ 
+			error: 'Failed to create bookmark' 
+		}, { status: 500 });
 	}
-	
-	const conn = await connectToDatabase(getMongoUri());
-	if (!conn) {
-		const data = addDummyBookmark(body);
-		return NextResponse.json({ data });
-	}
-	
-	const doc = await BookmarkModel.findOneAndUpdate(
-		{ userId: body.userId, surah: body.surah, ayah: body.ayah },
-		{ $set: body },
-		{ upsert: true, new: true }
-	);
-	return NextResponse.json({ data: doc });
 }
 
 export async function DELETE(req: NextRequest) {
-	const { searchParams } = new URL(req.url);
-	const userId = searchParams.get("userId");
-	const surah = Number(searchParams.get("surah"));
-	const ayah = Number(searchParams.get("ayah"));
-	
-	if (isDummyMode()) {
-		const success = deleteDummyBookmark(userId || undefined, surah, ayah);
-		return NextResponse.json({ ok: success });
+	try {
+		const { searchParams } = new URL(req.url);
+		const bookmarkId = searchParams.get("id");
+		const surah = Number(searchParams.get("surah"));
+		const ayah = Number(searchParams.get("ayah"));
+		
+		const conn = await connectToDatabase(getMongoUri());
+		if (!conn) {
+			return NextResponse.json({ 
+				error: 'Database connection failed. Please ensure MongoDB is accessible.' 
+			}, { status: 500 });
+		}
+		
+		// Global delete - anyone can delete any bookmark
+		let result;
+		if (bookmarkId) {
+			// Delete by specific bookmark ID
+			result = await BookmarkModel.deleteOne({ _id: bookmarkId });
+		} else if (surah && ayah) {
+			// Delete by surah and ayah (could delete multiple bookmarks for same verse)
+			result = await BookmarkModel.deleteMany({ surah, ayah });
+		} else {
+			return NextResponse.json({ 
+				error: 'Either bookmark ID or surah+ayah must be provided' 
+			}, { status: 400 });
+		}
+		
+		return NextResponse.json({ 
+			ok: true, 
+			deletedCount: result.deletedCount 
+		});
+	} catch (error) {
+		console.error('Error deleting bookmark:', error);
+		return NextResponse.json({ 
+			error: 'Failed to delete bookmark' 
+		}, { status: 500 });
 	}
-	
-	const conn = await connectToDatabase(getMongoUri());
-	if (!conn) {
-		const success = deleteDummyBookmark(userId || undefined, surah, ayah);
-		return NextResponse.json({ ok: success });
-	}
-	
-	await BookmarkModel.deleteOne({ userId: userId || undefined, surah, ayah });
-	return NextResponse.json({ ok: true });
 }
 
 

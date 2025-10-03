@@ -28,8 +28,6 @@ export function getMongoUri(): string | undefined {
 	return process.env.MONGODB_URI;
 }
 
-export function isDummyMode(): boolean {
-	return !process.env.MONGODB_URI;
-}
+// Removed isDummyMode - now always use MongoDB directly
 
 
