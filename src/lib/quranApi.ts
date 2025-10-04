@@ -101,6 +101,20 @@ export async function getAudioForAyah(surah: number, ayah: number, reciter = 'Ab
 	}
 }
 
-
-
-
+export async function searchQuran(query: string, page = 1, perPage = 10) {
+	try {
+		const response = await quranApiFetch<any>({
+			path: '/search',
+			query: {
+				q: query,
+				size: perPage,
+				page: page,
+				language: 'en'
+			}
+		});
+		return response;
+	} catch (error) {
+		console.warn('Search failed:', error);
+		throw error;
+	}
+}

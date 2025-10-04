@@ -72,6 +72,12 @@ pids
 # User uploads
 /uploads/
 /temp/
+/public/uploads/recitations/*.webm
+/public/uploads/recitations/*.mp3
+/public/uploads/recitations/*.wav
+/public/uploads/recitations/*.ogg
+# But keep the directory structure
+!/public/uploads/recitations/.gitkeep
 
 # Development
 .env.development.local

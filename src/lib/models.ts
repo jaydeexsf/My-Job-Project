@@ -35,4 +35,24 @@ export type RecitationHistory = InferSchemaType<typeof recitationHistorySchema>;
 export const RecitationHistoryModel =
 	models.RecitationHistory || model("RecitationHistory", recitationHistorySchema);
 
+// Competition Recitation model: for recitation competition with likes and rankings
+const competitionRecitationSchema = new Schema(
+	{
+		userId: { type: String, required: true, index: true }, // Machine ID
+		surah: { type: Number, required: true, index: true },
+		ayah: { type: Number }, // Optional: can be whole chapter or specific verse
+		audioPath: { type: String, required: true }, // Path to audio file
+		likes: [{ type: String }], // Array of user IDs who liked
+		likeCount: { type: Number, default: 0 },
+	},
+	{ timestamps: true }
+);
+
+competitionRecitationSchema.index({ surah: 1, likeCount: -1 });
+competitionRecitationSchema.index({ userId: 1, createdAt: -1 });
+
+export type CompetitionRecitation = InferSchemaType<typeof competitionRecitationSchema>;
+export const CompetitionRecitationModel =
+	models.CompetitionRecitation || model("CompetitionRecitation", competitionRecitationSchema);
+
 

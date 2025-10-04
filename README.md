@@ -6,6 +6,11 @@ This is a [Next.js](https://nextjs.org) project for Quranic voice search, bookma
 
 - 🎤 **Voice Search**: Search Quranic verses using voice recognition
 - 📖 **Bookmarks**: Save and manage your favorite verses
+- 🏆 **Recitation Competition**: Record and compete with your Quran recitations
+  - Record audio directly in browser
+  - Submit recitations for any Surah/Ayah
+  - Like/vote on recitations
+  - Real-time rankings and leaderboards
 - 📊 **Recitation History**: Track your recitation practice with accuracy scores
 - 🎵 **Audio Player**: Listen to Quranic recitations
 - 📱 **Responsive Design**: Works on desktop and mobile devices
@@ -29,6 +34,17 @@ To use real data persistence, create a `.env.local` file with:
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/quranproject
+```
+
+### Cloudinary Setup (Required for Competition Feature)
+
+For audio uploads in the recitation competition, add to `.env.local`:
+
+```env
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name
 ```
 
 ### API Configuration (Optional)
