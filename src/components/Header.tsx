@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import clsx from "clsx";
 // import { Menu } from "lucide-react";
 
 const navigation = [
-	{ name: "Voice Search", href: "/" },
-	{ name: "Search", href: "/search" },
-	{ name: "Identify", href: "/identify" },
-	{ name: "Bookmarks", href: "/bookmarks" },
-	{ name: "Recite", href: "/recite" },
-	{ name: "History", href: "/history" },
+  { name: "Voice Search", href: "/" },
+  { name: "Identify", href: "/identify" },
+  { name: "Bookmarks", href: "/bookmarks" },
+  { name: "Recite", href: "/recite" },
+  { name: "History", href: "/history" },
 ];
 
 export default function Header() {
 	const pathname = usePathname();
+	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 	return (
 		<header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border-b border-gray-200/20 dark:border-gray-700/20">
@@ -40,6 +41,7 @@ export default function Header() {
 							<Link
 								key={item.name}
 								href={item.href}
+								onClick={() => console.log('Button clicked: Navigation to', item.name, item.href)}
 								className={clsx(
 									"px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
 									pathname === item.href
@@ -54,11 +56,43 @@ export default function Header() {
 
 					{/* Mobile menu button */}
 					<div className="md:hidden">
-						<button className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-							<span className="text-xl">☰</span>
+						<button 
+							onClick={() => {
+								console.log('Button clicked: Mobile menu toggle');
+								setMobileMenuOpen(!mobileMenuOpen);
+							}}
+							className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+						>
+							<span className="text-xl">{mobileMenuOpen ? '✕' : '☰'}</span>
 						</button>
 					</div>
 				</div>
+
+				{/* Mobile menu */}
+				{mobileMenuOpen && (
+					<div className="md:hidden border-t border-gray-200/20 dark:border-gray-700/20">
+						<div className="px-2 pt-2 pb-3 space-y-1">
+							{navigation.map((item) => (
+								<Link
+									key={item.name}
+									href={item.href}
+									onClick={() => {
+										console.log('Button clicked: Mobile navigation to', item.name, item.href);
+										setMobileMenuOpen(false);
+									}}
+									className={clsx(
+										"block px-3 py-2 rounded-md text-base font-medium transition-colors",
+										pathname === item.href
+											? "bg-emerald-600 text-white"
+											: "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+									)}
+								>
+									{item.name}
+								</Link>
+							))}
+						</div>
+					</div>
+				)}
 			</div>
 		</header>
 	);

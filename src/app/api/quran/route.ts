@@ -18,26 +18,31 @@ export async function GET(request: NextRequest) {
       const [surahData, ayahData, audioData] = await Promise.all([
         getSurah(surahNum),
         getAyah(surahNum, ayahNum),
-        audio === 'true' ? getAudioForAyah(surahNum, ayahNum, reciter || undefined) : null
+        audio === 'true' ? getAudioForAyah(surahNum, ayahNum, reciter || '1') : null
       ]);
 
-      return NextResponse.json({
+      const response = {
         surah: surahData,
         ayah: ayahData,
         audio: audioData
-      });
+      };
+      console.log('Quran API Response - Specific Surah/Ayah:', response);
+      return NextResponse.json(response);
     }
 
     // If specific surah requested
     if (surah) {
       const surahNum = parseInt(surah);
       const surahData = await getSurah(surahNum);
+      console.log('Quran API Response - Specific Surah:', surahData);
       return NextResponse.json(surahData);
     }
 
     // Return list of all surahs with basic info
     const surahs = await getAllSurahs();
-    return NextResponse.json({ surahs });
+    const response = { surahs };
+    console.log('Quran API Response - All Surahs:', response);
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Error fetching Quran data:', error);
@@ -54,15 +59,6 @@ export async function POST(request: NextRequest) {
     const { action, surah, ayah, query, reciter } = await request.json();
 
     switch (action) {
-      case 'search':
-        if (!query) {
-          return NextResponse.json(
-            { error: 'Query parameter required for search' },
-            { status: 400 }
-          );
-        }
-        const searchResults = await searchQuran(query);
-        return NextResponse.json(searchResults);
 
       case 'getAudio':
         if (!surah || !ayah) {
@@ -72,14 +68,17 @@ export async function POST(request: NextRequest) {
           );
         }
         const audioData = await getAudioForAyah(parseInt(surah), parseInt(ayah), reciter);
+        console.log('Quran API Response - Audio Data:', audioData);
         return NextResponse.json(audioData);
 
       case 'getRandomVerse':
         const randomVerse = await getRandomVerse();
+        console.log('Quran API Response - Random Verse:', randomVerse);
         return NextResponse.json(randomVerse);
 
       case 'getPopularVerses':
         const popularVerses = await getPopularVerses();
+        console.log('Quran API Response - Popular Verses:', popularVerses);
         return NextResponse.json(popularVerses);
 
       default:
@@ -105,75 +104,21 @@ async function getAllSurahs() {
     const response = await getAllChapters();
     if (response.chapters) {
       return response.chapters.map((chapter: any) => ({
-        number: chapter.id,
-        name: chapter.name_simple || chapter.name_arabic,
-        englishName: chapter.translated_name?.name || chapter.name_simple,
-        numberOfAyahs: chapter.verses_count,
-        revelationType: chapter.revelation_place || 'Unknown'
+        id: chapter.id,
+        name_simple: chapter.name_simple,
+        name_arabic: chapter.name_arabic,
+        verses_count: chapter.verses_count,
+        translated_name: chapter.translated_name
       }));
     }
   } catch (error) {
     console.warn('Failed to fetch all chapters:', error);
   }
 
-  // Fallback to popular surahs if API fails
-  const surahs = [];
-  const popularSurahs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 18, 36, 55, 67, 112, 113, 114];
-  
-  for (const surahNum of popularSurahs) {
-    try {
-      const surahData = await getSurah(surahNum);
-      surahs.push({
-        number: surahNum,
-        name: surahData.name || `Surah ${surahNum}`,
-        englishName: surahData.englishName || `Surah ${surahNum}`,
-        numberOfAyahs: surahData.numberOfAyahs || 0,
-        revelationType: surahData.revelationType || 'Unknown'
-      });
-    } catch (error) {
-      console.warn(`Failed to fetch surah ${surahNum}:`, error);
-      // Add fallback data
-      surahs.push({
-        number: surahNum,
-        name: `Surah ${surahNum}`,
-        englishName: `Surah ${surahNum}`,
-        numberOfAyahs: 0,
-        revelationType: 'Unknown'
-      });
-    }
-  }
-  
-  return surahs;
+  // Return empty array if API fails
+  return [];
 }
 
-async function searchQuran(query: string) {
-  try {
-    return await quranApiFetch<any>({ 
-      path: "/v1/search", 
-      query: { q: query, limit: 20 } 
-    });
-  } catch (error) {
-    console.warn('Search failed, returning fallback results:', error);
-    return {
-      results: [
-        {
-          surah: 1,
-          ayah: 1,
-          text: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
-          translation: "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
-          surahName: "Al-Fatiha"
-        },
-        {
-          surah: 2,
-          ayah: 255,
-          text: "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ",
-          translation: "Allah - there is no deity except Him, the Ever-Living, the Sustainer of existence.",
-          surahName: "Al-Baqarah"
-        }
-      ]
-    };
-  }
-}
 
 async function getRandomVerse() {
   const popularVerses = [
@@ -204,15 +149,7 @@ async function getRandomVerse() {
     };
   } catch (error) {
     console.warn('Failed to get random verse:', error);
-    return {
-      surah: { name: "Al-Fatiha", englishName: "The Opening" },
-      ayah: { 
-        text: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", 
-        translation: "In the name of Allah, the Entirely Merciful, the Especially Merciful." 
-      },
-      surahNumber: 1,
-      ayahNumber: 1
-    };
+    return null;
   }
 }
 

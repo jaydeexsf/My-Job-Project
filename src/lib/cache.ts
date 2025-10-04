@@ -41,17 +41,6 @@ export const getCachedAyah = unstable_cache(
   }
 );
 
-export const getCachedSearchResults = unstable_cache(
-  async (query: string) => {
-    const { searchAyat } = await import('./quranApi');
-    return searchAyat(query);
-  },
-  ['search'],
-  {
-    tags: [CACHE_TAGS.SEARCH_RESULTS],
-    revalidate: CACHE_DURATIONS.SEARCH_RESULTS,
-  }
-);
 
 // In-memory cache for client-side performance
 class MemoryCache {

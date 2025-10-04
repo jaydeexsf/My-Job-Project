@@ -2,15 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { searchAyat } from "@/lib/quranApi";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/outline";
 // import { Mic, MicOff, Search, Loader2 } from "lucide-react";
 
 export default function VoiceSearch() {
 	const [listening, setListening] = useState(false);
 	const [transcript, setTranscript] = useState("");
-	const [searchResults, setSearchResults] = useState<any>(null);
-	const [isSearching, setIsSearching] = useState(false);
 	const recognitionRef = useRef<any>(null);
 
 	useEffect(() => {
@@ -28,26 +25,16 @@ export default function VoiceSearch() {
 				}
 				setTranscript(text);
 			};
-			recog.onend = async () => {
+			recog.onend = () => {
 				setListening(false);
-				if (transcript.trim()) {
-					setIsSearching(true);
-					try {
-						const res = await searchAyat(transcript.trim());
-						setSearchResults(res);
-					} catch (error) {
-						console.error("Search failed:", error);
-						setSearchResults({ error: "Search failed" });
-					} finally {
-						setIsSearching(false);
-					}
-				}
+				console.log('Voice recognition ended. Transcript:', transcript);
 			};
 			recognitionRef.current = recog;
 		}
 	}, [transcript]);
 
 	const toggle = () => {
+		console.log('Button clicked: Voice search toggle, current state:', listening ? 'listening' : 'not listening');
 		if (!recognitionRef.current) return;
 		if (listening) {
 			recognitionRef.current.stop();
@@ -77,59 +64,24 @@ export default function VoiceSearch() {
 					"shadow-md hover:shadow-lg",
 					"border border-emerald-700",
 					"disabled:opacity-50 disabled:cursor-not-allowed",
-					listening && "bg-red-600 hover:bg-red-700 border-red-700 animate-pulse",
-					isSearching && "bg-amber-600 hover:bg-amber-700 border-amber-700 cursor-wait"
+					listening && "bg-red-600 hover:bg-red-700 border-red-700 animate-pulse"
 				)}
 				onClick={toggle}
-				disabled={isSearching}
 			>
 				<div className={clsx(
 					"w-6 h-6 flex items-center justify-center",
 					listening && "animate-pulse"
 				)}>
-					{listening ? <StopIcon className="w-6 h-6" /> : isSearching ? (
-						<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-					) : <MicrophoneIcon className="w-6 h-6" />}
+					{listening ? <StopIcon className="w-6 h-6" /> : <MicrophoneIcon className="w-6 h-6" />}
 				</div>
 				<span className="text-lg">
-					{listening ? "Listening… Click to stop" : isSearching ? "Searching..." : "Press and speak to search"}
+					{listening ? "Listening… Click to stop" : "Press and speak"}
 				</span>
 			</button>
 			
 			{transcript && (
 				<p className="mt-4 text-sm opacity-80">
 					<strong>You said:</strong> &ldquo;{transcript}&rdquo;
-				</p>
-			)}
-			
-			{searchResults && !searchResults.error && (
-				<div className="mt-6 text-left">
-					<h3 className="font-semibold mb-3">Search Results:</h3>
-					{searchResults.results?.length > 0 ? (
-						<div className="space-y-3">
-							{searchResults.results.slice(0, 3).map((result: any, index: number) => (
-								<div key={index} className="p-3 bg-white/10 rounded-lg">
-									<div className="text-right text-lg mb-2" dir="rtl">
-										{result.text}
-									</div>
-									<div className="text-sm opacity-80">
-										{result.translation}
-									</div>
-									<div className="text-xs opacity-60 mt-1">
-										Surah {result.surah}, Ayah {result.ayah}
-									</div>
-								</div>
-							))}
-						</div>
-					) : (
-						<p className="text-sm opacity-70">No results found. Try a different search term.</p>
-					)}
-				</div>
-			)}
-			
-			{searchResults?.error && (
-				<p className="mt-4 text-sm text-red-400">
-					Search failed. Please try again.
 				</p>
 			)}
 		</div>

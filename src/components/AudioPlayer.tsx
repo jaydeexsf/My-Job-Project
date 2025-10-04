@@ -36,7 +36,19 @@ export default function AudioPlayer({ src, caption }: Props) {
 				{caption && <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{caption}</div>}
 			</div>
 			
-			<audio ref={audioRef} controls className="w-full" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}>
+			<audio 
+				ref={audioRef} 
+				controls 
+				className="w-full" 
+				onPlay={() => {
+					console.log('Button clicked: Audio play');
+					setPlaying(true);
+				}} 
+				onPause={() => {
+					console.log('Button clicked: Audio pause');
+					setPlaying(false);
+				}}
+			>
 				{src ? <source src={src} /> : null}
 			</audio>
 			

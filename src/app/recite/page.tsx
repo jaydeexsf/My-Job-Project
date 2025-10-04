@@ -32,6 +32,7 @@ export default function RecitePage() {
   }, [transcript]);
 
   const toggle = () => {
+    console.log('Button clicked: Recitation toggle, current state:', listening ? 'listening' : 'not listening');
     if (!recognitionRef.current) return;
     if (listening) {
       recognitionRef.current.stop();
@@ -44,12 +45,14 @@ export default function RecitePage() {
   };
 
   const save = async () => {
+    console.log('Button clicked: Save recitation', match);
     if (!match) return;
     await fetch("/api/recitations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transcript: match.transcript }),
     });
+    console.log('Recitation saved to history');
     alert("Saved to history");
   };
 

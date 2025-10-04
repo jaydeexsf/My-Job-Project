@@ -1,16 +1,137 @@
+"use client";
+
 import VoiceSearch from "@/components/VoiceSearch";
 import AudioPlayer from "@/components/AudioPlayer";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   MicrophoneIcon, 
   BookOpenIcon, 
   ChartBarIcon,
-  MusicalNoteIcon
+  MusicalNoteIcon,
+  PlayIcon,
+  PauseIcon
 } from "@heroicons/react/24/outline";
-// import { Mic, BookOpen, BarChart3 } from "lucide-react";
+
+interface Chapter {
+  id: number;
+  name_simple: string;
+  name_arabic: string;
+  verses_count: number;
+  translated_name: {
+    name: string;
+  };
+}
 
 export default function Home() {
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [playingChapter, setPlayingChapter] = useState<number | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    fetchChapters();
+  }, []);
+
+  // Cleanup audio when component unmounts
+  useEffect(() => {
+    return () => {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+    };
+  }, [currentAudio]);
+
+  const fetchChapters = async () => {
+    console.log('Button clicked: Fetching chapters from API');
+    try {
+      const response = await fetch('/api/quran');
+      const data = await response.json();
+      console.log('API Response received for chapters:', data);
+      if (data.surahs) {
+        // Show first 10 chapters
+        setChapters(data.surahs.slice(0, 10));
+      }
+    } catch (error) {
+      console.error('Error fetching chapters:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMoreChapters = async () => {
+    console.log('Button clicked: Loading more chapters');
+    try {
+      const response = await fetch('/api/quran');
+      const data = await response.json();
+      console.log('API Response received for more chapters:', data);
+      if (data.surahs) {
+        // Load next 10 chapters
+        setChapters(prev => [...prev, ...data.surahs.slice(prev.length, prev.length + 10)]);
+      }
+    } catch (error) {
+      console.error('Error loading more chapters:', error);
+    }
+  };
+
+  const playChapter = async (chapterId: number) => {
+    console.log('Button clicked: Playing chapter', chapterId);
+    
+    // If the same chapter is already playing, pause it
+    if (playingChapter === chapterId && currentAudio) {
+      console.log('Pausing current audio');
+      currentAudio.pause();
+      setPlayingChapter(null);
+      setCurrentAudio(null);
+      return;
+    }
+    
+    // If a different chapter is playing, stop it first
+    if (currentAudio) {
+      console.log('Stopping previous audio');
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    
+    try {
+      const response = await fetch(`/api/audio?surah=${chapterId}&ayah=1&reciter=1`);
+      const data = await response.json();
+      console.log('API Response received for audio:', data);
+      
+      if (data.audio?.audioUrl) {
+        setPlayingChapter(chapterId);
+        // Create audio element and play
+        const audio = new Audio(data.audio.audioUrl);
+        setCurrentAudio(audio);
+        
+        // Add event listeners for better debugging
+        audio.addEventListener('loadstart', () => console.log('Audio loading started'));
+        audio.addEventListener('canplay', () => console.log('Audio can start playing'));
+        audio.addEventListener('error', (e) => console.error('Audio error:', e));
+        audio.addEventListener('loadeddata', () => console.log('Audio data loaded'));
+        audio.addEventListener('ended', () => {
+          console.log('Audio ended');
+          setPlayingChapter(null);
+          setCurrentAudio(null);
+        });
+        
+        audio.play().catch(error => {
+          console.error('Error playing audio:', error);
+          // Try to provide more helpful error messages
+          if (error.name === 'NotSupportedError') {
+            console.error('Audio format not supported or URL invalid');
+          } else if (error.name === 'NotAllowedError') {
+            console.error('Audio playback blocked by browser - user interaction required');
+          }
+        });
+        console.log('Playing chapter:', chapterId, 'Audio URL:', data.audio.audioUrl);
+      }
+    } catch (error) {
+      console.error('Error playing chapter:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -70,8 +191,75 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Chapters Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900 dark:text-white">
+              Listen to Beautiful Recitations
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+              Click on any chapter to listen to its recitation
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {chapters.map((chapter) => (
+                <div key={chapter.id} className="group p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">
+                      {chapter.id}
+                    </div>
+                    <button
+                      onClick={() => playChapter(chapter.id)}
+                      className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                    >
+                      {playingChapter === chapter.id ? (
+                        <PauseIcon className="w-5 h-5" />
+                      ) : (
+                        <PlayIcon className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
+                    {chapter.name_simple}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-2">
+                    {chapter.translated_name.name}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {chapter.verses_count} verses
+                  </p>
+                  
+                  <div className="mt-4 text-right text-lg" dir="rtl">
+                    {chapter.name_arabic}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {chapters.length > 0 && chapters.length < 114 && (
+            <div className="text-center mt-12">
+              <button
+                onClick={loadMoreChapters}
+                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Load More Chapters ({chapters.length}/114)
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900 dark:text-white">
@@ -92,7 +280,11 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Search the entire Quran using your voice in Arabic or English. Our AI understands context and meaning.
               </p>
-              <Link href="/" className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline">
+              <Link 
+                href="/" 
+                onClick={() => console.log('Button clicked: Try Voice Search')}
+                className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
+              >
                 Try Voice Search →
               </Link>
             </div>
@@ -106,7 +298,11 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Save your favorite verses with personal notes and organize them by themes or study sessions.
               </p>
-              <Link href="/bookmarks" className="text-teal-600 dark:text-teal-400 font-medium hover:underline">
+              <Link 
+                href="/bookmarks" 
+                onClick={() => console.log('Button clicked: View Bookmarks')}
+                className="text-teal-600 dark:text-teal-400 font-medium hover:underline"
+              >
                 View Bookmarks →
               </Link>
             </div>
@@ -120,7 +316,11 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Get real-time feedback on your recitation with accuracy scores and pronunciation guidance.
               </p>
-              <Link href="/recite" className="text-slate-600 dark:text-slate-400 font-medium hover:underline">
+              <Link 
+                href="/recite" 
+                onClick={() => console.log('Button clicked: Start Reciting')}
+                className="text-slate-600 dark:text-slate-400 font-medium hover:underline"
+              >
                 Start Reciting →
               </Link>
             </div>
@@ -134,7 +334,11 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Like Shazam for Quran! Record or upload any recitation and instantly identify the verse.
               </p>
-              <Link href="/identify" className="text-purple-600 dark:text-purple-400 font-medium hover:underline">
+              <Link 
+                href="/identify" 
+                onClick={() => console.log('Button clicked: Identify Verse')}
+                className="text-purple-600 dark:text-purple-400 font-medium hover:underline"
+              >
                 Identify Verse →
               </Link>
             </div>

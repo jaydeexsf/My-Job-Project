@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { quranApiFetch, searchAyat, getSurah } from '@/lib/quranApi';
+import { quranApiFetch, getSurah } from '@/lib/quranApi';
 
 // Simple audio fingerprinting simulation - In a real app, you'd use actual audio analysis
 async function identifyVerseFromAudio(audioData: string): Promise<any> {
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
     // Enhance with additional details from Quran API
     const enhancedVerse = await enhanceVerseDetails(identifiedVerse);
 
+    console.log('Identify Verse API Response - POST:', enhancedVerse);
     return NextResponse.json(enhancedVerse);
 
   } catch (error) {
@@ -146,6 +147,7 @@ export async function PUT(request: NextRequest) {
     const identifiedVerse = await identifyVerseFromAudio(base64Audio);
     const enhancedVerse = await enhanceVerseDetails(identifiedVerse);
 
+    console.log('Identify Verse API Response - PUT:', enhancedVerse);
     return NextResponse.json(enhancedVerse);
 
   } catch (error) {

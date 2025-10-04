@@ -9,7 +9,9 @@ export default function BookmarksPage() {
   const items = data?.data || [];
 
   const remove = async (surah: number, ayah: number) => {
+    console.log('Button clicked: Remove bookmark', surah, ayah);
     await fetch(`/api/bookmarks?surah=${surah}&ayah=${ayah}`, { method: "DELETE" });
+    console.log('Bookmark removed successfully');
     mutate();
   };
 

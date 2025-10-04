@@ -24,6 +24,7 @@ export default function IdentifyPage() {
       <div className="max-w-4xl mx-auto mb-8">
         <Link 
           href="/" 
+          onClick={() => console.log('Button clicked: Back to Home')}
           className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:underline mb-6"
         >
           <ArrowLeftIcon className="w-4 h-4" />
@@ -156,19 +157,22 @@ export default function IdentifyPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link 
-              href="/search" 
+              href="/" 
+              onClick={() => console.log('Button clicked: Voice Search')}
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
             >
               Voice Search
             </Link>
             <Link 
               href="/recite" 
+              onClick={() => console.log('Button clicked: Recitation Practice')}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               Recitation Practice
             </Link>
             <Link 
               href="/bookmarks" 
+              onClick={() => console.log('Button clicked: Bookmarks')}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
             >
               Bookmarks

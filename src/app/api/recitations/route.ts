@@ -16,7 +16,9 @@ export async function GET() {
 			.sort({ createdAt: -1 })
 			.limit(100)
 			.lean();
-		return NextResponse.json({ data });
+		const response = { data };
+		console.log('Recitations API Response - GET:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error fetching recitations:', error);
 		return NextResponse.json({ 
@@ -38,7 +40,9 @@ export async function POST(req: NextRequest) {
 		
 		// For global access, allow anyone to create recitation records
 		const created = await RecitationHistoryModel.create(body);
-		return NextResponse.json({ data: created });
+		const response = { data: created };
+		console.log('Recitations API Response - POST:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error creating recitation:', error);
 		return NextResponse.json({ 
@@ -82,10 +86,12 @@ export async function DELETE(req: NextRequest) {
 			}, { status: 400 });
 		}
 		
-		return NextResponse.json({ 
+		const response = { 
 			ok: true, 
 			deletedCount: result.deletedCount 
-		});
+		};
+		console.log('Recitations API Response - DELETE:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error deleting recitation:', error);
 		return NextResponse.json({ 

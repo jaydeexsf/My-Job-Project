@@ -13,7 +13,9 @@ export async function GET() {
 		
 		// Get ALL bookmarks from database, sorted by creation date
 		const data = await BookmarkModel.find({}).sort({ createdAt: -1 }).lean();
-		return NextResponse.json({ data });
+		const response = { data };
+		console.log('Bookmarks API Response - GET:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error fetching bookmarks:', error);
 		return NextResponse.json({ 
@@ -35,7 +37,9 @@ export async function POST(req: NextRequest) {
 		
 		// For global access, allow anyone to create bookmarks
 		const doc = await BookmarkModel.create(body);
-		return NextResponse.json({ data: doc });
+		const response = { data: doc };
+		console.log('Bookmarks API Response - POST:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error creating bookmark:', error);
 		return NextResponse.json({ 
@@ -72,10 +76,12 @@ export async function DELETE(req: NextRequest) {
 			}, { status: 400 });
 		}
 		
-		return NextResponse.json({ 
+		const response = { 
 			ok: true, 
 			deletedCount: result.deletedCount 
-		});
+		};
+		console.log('Bookmarks API Response - DELETE:', response);
+		return NextResponse.json(response);
 	} catch (error) {
 		console.error('Error deleting bookmark:', error);
 		return NextResponse.json({ 

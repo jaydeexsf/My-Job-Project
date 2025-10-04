@@ -41,6 +41,7 @@ export default function AudioIdentifier() {
   const analyserRef = useRef<AnalyserNode | null>(null);
 
   const startRecording = async () => {
+    console.log('Button clicked: Start recording');
     try {
       setError(null);
       setResults(null);
@@ -105,6 +106,7 @@ export default function AudioIdentifier() {
   };
 
   const stopRecording = () => {
+    console.log('Button clicked: Stop recording');
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -154,6 +156,7 @@ export default function AudioIdentifier() {
   };
 
   const analyzeAudio = async () => {
+    console.log('Button clicked: Analyze audio');
     if (!audioBlob) return;
     
     setIsAnalyzing(true);
@@ -182,6 +185,7 @@ export default function AudioIdentifier() {
         }
         
         const result = await response.json();
+        console.log('Audio identification API response:', result);
         setResults(result);
       };
       
@@ -196,11 +200,13 @@ export default function AudioIdentifier() {
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Button clicked: File upload');
     const file = event.target.files?.[0];
     if (file && file.type.startsWith('audio/')) {
       setAudioBlob(file);
       setResults(null);
       setError(null);
+      console.log('Audio file uploaded:', file.name, file.type);
     } else {
       setError("Please select a valid audio file.");
     }
@@ -366,15 +372,24 @@ export default function AudioIdentifier() {
               </div>
               
               <div className="flex gap-2 pt-4">
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
+                <button 
+                  onClick={() => console.log('Button clicked: Read Full Surah', results?.surah)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                >
                   <BookOpenIcon className="w-4 h-4" />
                   <span>Read Full Surah</span>
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors">
+                <button 
+                  onClick={() => console.log('Button clicked: Bookmark verse', results?.surah, results?.ayah)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors"
+                >
                   <BookmarkIcon className="w-4 h-4" />
                   <span>Bookmark</span>
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors">
+                <button 
+                  onClick={() => console.log('Button clicked: Listen to verse', results?.surah, results?.ayah)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors"
+                >
                   <SpeakerWaveIcon className="w-4 h-4" />
                   <span>Listen</span>
                 </button>

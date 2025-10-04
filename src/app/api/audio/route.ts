@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAudioForAyah, getSurah } from '@/lib/quranApi';
 
-// Popular reciters with their IDs
+// Popular reciters with their IDs from Quran.com API
 const POPULAR_RECITERS = {
-  'abdul-basit': { name: 'Abdul Basit Abd us-Samad', id: 'abdul-basit' },
-  'mishary': { name: 'Mishary Rashid Alafasy', id: 'mishary' },
-  'sudais': { name: 'Abdul Rahman Al-Sudais', id: 'sudais' },
-  'husary': { name: 'Mahmoud Khalil Al-Husary', id: 'husary' },
-  'minshawi': { name: 'Mohamed Siddiq El-Minshawi', id: 'minshawi' },
-  'ajmi': { name: 'Ahmad bin Ali Al-Ajmi', id: 'ajmi' }
+  '1': { name: 'Abdul Basit Murattal', id: 'Abdul_Basit_Murattal' },
+  '2': { name: 'Mishary Rashid Alafasy', id: 'Mishary_Rashid_Alafasy' },
+  '3': { name: 'Abdul Rahman Al-Sudais', id: 'Abdul_Rahman_Al_Sudais' },
+  '4': { name: 'Mahmoud Khalil Al-Husary', id: 'Mahmoud_Khalil_Al_Husary' },
+  '5': { name: 'Mohamed Siddiq El-Minshawi', id: 'Mohamed_Siddiq_El_Minshawi' },
+  '6': { name: 'Ahmad bin Ali Al-Ajmi', id: 'Ahmad_bin_Ali_Al_Ajmi' }
 };
 
 // Get audio for specific ayah or list reciters
@@ -22,9 +22,11 @@ export async function GET(request: NextRequest) {
 
     // Return list of available reciters
     if (action === 'reciters') {
-      return NextResponse.json({
+      const response = {
         reciters: Object.values(POPULAR_RECITERS)
-      });
+      };
+      console.log('Audio API Response - Reciters:', response);
+      return NextResponse.json(response);
     }
 
     // Get audio for specific ayah
@@ -40,32 +42,27 @@ export async function GET(request: NextRequest) {
       }
 
       try {
+        const audioReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
         const [audioData, surahData] = await Promise.all([
-          getAudioForAyah(surahNum, ayahNum, reciter || 'abdul-basit'),
+          getAudioForAyah(surahNum, ayahNum, audioReciterId),
           getSurah(surahNum)
         ]);
 
-        return NextResponse.json({
+        const response = {
           audio: audioData,
           surah: surahData,
           ayah: ayahNum,
-          reciter: reciter || 'abdul-basit',
-          reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad'
-        });
+          reciter: reciter || '1',
+          reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Murattal'
+        };
+        console.log('Audio API Response - Audio for Ayah:', response);
+        return NextResponse.json(response);
       } catch (error) {
         console.error('Error fetching audio:', error);
-        // Return fallback audio URL
-        return NextResponse.json({
-          audio: {
-            audioUrl: `/audio/fallback-${surahNum}-${ayahNum}.mp3`,
-            reciter: reciter || 'abdul-basit'
-          },
-          surah: { name: `Surah ${surahNum}`, englishName: `Surah ${surahNum}` },
-          ayah: ayahNum,
-          reciter: reciter || 'abdul-basit',
-          reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad',
-          fallback: true
-        });
+        return NextResponse.json(
+          { error: 'Failed to fetch audio from Quran.com API' },
+          { status: 500 }
+        );
       }
     }
 
@@ -97,7 +94,9 @@ export async function POST(request: NextRequest) {
           );
         }
         
-        const playlist = await createPlaylist(verses, reciter);
+        const playlistReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
+        const playlist = await createPlaylist(verses, playlistReciterId);
+        console.log('Audio API Response - Playlist:', playlist);
         return NextResponse.json(playlist);
 
       case 'surahAudio':
@@ -108,11 +107,14 @@ export async function POST(request: NextRequest) {
           );
         }
         
-        const surahAudio = await getSurahAudio(parseInt(surah), reciter);
+        const surahReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
+        const surahAudio = await getSurahAudio(parseInt(surah), surahReciterId);
+        console.log('Audio API Response - Surah Audio:', surahAudio);
         return NextResponse.json(surahAudio);
 
       case 'popularRecitations':
         const popularRecitations = await getPopularRecitations();
+        console.log('Audio API Response - Popular Recitations:', popularRecitations);
         return NextResponse.json(popularRecitations);
 
       default:
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Helper functions
-async function createPlaylist(verses: Array<{surah: number, ayah: number}>, reciter = 'abdul-basit') {
+async function createPlaylist(verses: Array<{surah: number, ayah: number}>, reciter = 'Abdul_Basit_Murattal') {
   const playlist = [];
   
   for (const verse of verses.slice(0, 10)) { // Limit to 10 verses
@@ -145,38 +147,28 @@ async function createPlaylist(verses: Array<{surah: number, ayah: number}>, reci
       playlist.push({
         surah: verse.surah,
         ayah: verse.ayah,
-        surahName: surahData.name || `Surah ${verse.surah}`,
+        surahName: surahData.name_simple || `Surah ${verse.surah}`,
         audio: audioData,
         reciter: reciter,
-        reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad'
+        reciterName: 'Abdul Basit Murattal'
       });
     } catch (error) {
       console.warn(`Failed to get audio for ${verse.surah}:${verse.ayah}:`, error);
-      // Add fallback entry
-      playlist.push({
-        surah: verse.surah,
-        ayah: verse.ayah,
-        surahName: `Surah ${verse.surah}`,
-        audio: { audioUrl: `/audio/fallback-${verse.surah}-${verse.ayah}.mp3` },
-        reciter: reciter,
-        reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad',
-        fallback: true
-      });
     }
   }
   
   return {
     playlist,
     reciter: reciter,
-    reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad',
+    reciterName: 'Abdul Basit Murattal',
     totalTracks: playlist.length
   };
 }
 
-async function getSurahAudio(surahNum: number, reciter = 'abdul-basit') {
+async function getSurahAudio(surahNum: number, reciter = 'Abdul_Basit_Murattal') {
   try {
     const surahData = await getSurah(surahNum);
-    const numberOfAyahs = surahData.numberOfAyahs || 7; // Default to 7 if not available
+    const numberOfAyahs = surahData.verses_count || 7; // Default to 7 if not available
     
     // For demo, we'll just return the first few ayahs
     const ayahs = [];
@@ -191,11 +183,6 @@ async function getSurahAudio(surahNum: number, reciter = 'abdul-basit') {
         });
       } catch (error) {
         console.warn(`Failed to get audio for ${surahNum}:${i}:`, error);
-        ayahs.push({
-          ayah: i,
-          audio: { audioUrl: `/audio/fallback-${surahNum}-${i}.mp3` },
-          fallback: true
-        });
       }
     }
     
@@ -204,7 +191,7 @@ async function getSurahAudio(surahNum: number, reciter = 'abdul-basit') {
       surahNumber: surahNum,
       ayahs: ayahs,
       reciter: reciter,
-      reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Abd us-Samad',
+      reciterName: 'Abdul Basit Murattal',
       totalAyahs: numberOfAyahs
     };
   } catch (error) {
@@ -227,27 +214,19 @@ async function getPopularRecitations() {
   for (const verse of popularVerses) {
     try {
       const [audioData, surahData] = await Promise.all([
-        getAudioForAyah(verse.surah, verse.ayah, 'abdul-basit'),
+        getAudioForAyah(verse.surah, verse.ayah, 'Abdul_Basit_Murattal'),
         getSurah(verse.surah)
       ]);
       
       recitations.push({
         ...verse,
-        surahName: surahData.name || `Surah ${verse.surah}`,
+        surahName: surahData.name_simple || `Surah ${verse.surah}`,
         audio: audioData,
-        reciter: 'abdul-basit',
-        reciterName: 'Abdul Basit Abd us-Samad'
+        reciter: 'Abdul_Basit_Murattal',
+        reciterName: 'Abdul Basit Murattal'
       });
     } catch (error) {
       console.warn(`Failed to get popular recitation ${verse.surah}:${verse.ayah}:`, error);
-      recitations.push({
-        ...verse,
-        surahName: `Surah ${verse.surah}`,
-        audio: { audioUrl: `/audio/fallback-${verse.surah}-${verse.ayah}.mp3` },
-        reciter: 'abdul-basit',
-        reciterName: 'Abdul Basit Abd us-Samad',
-        fallback: true
-      });
     }
   }
   
