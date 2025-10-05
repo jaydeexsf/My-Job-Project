@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const ayah = searchParams.get('ayah');
     const audio = searchParams.get('audio');
     const reciter = searchParams.get('reciter');
+    console.log('[quran] ▶ GET', { surah, ayah, audio, reciter });
 
     // If specific surah and ayah requested
     if (surah && ayah) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
         ayah: ayahData,
         audio: audioData
       };
-      console.log('Quran API Response - Specific Surah/Ayah:', response);
+      console.log('[quran] ◀ specific surah/ayah', { surah: surahNum, ayah: ayahNum, audioUrl: audioData?.audioUrl });
       return NextResponse.json(response);
     }
 
@@ -34,18 +35,18 @@ export async function GET(request: NextRequest) {
     if (surah) {
       const surahNum = parseInt(surah);
       const surahData = await getSurah(surahNum);
-      console.log('Quran API Response - Specific Surah:', surahData);
+      console.log('[quran] ◀ specific surah', { surah: surahNum, verses_count: surahData?.verses_count });
       return NextResponse.json(surahData);
     }
 
     // Return list of all surahs with basic info
     const surahs = await getAllSurahs();
     const response = { surahs };
-    console.log('Quran API Response - All Surahs:', response);
+    console.log('[quran] ◀ all surahs', { count: surahs?.length });
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Error fetching Quran data:', error);
+    console.error('[quran] ✗ fetch error', error);
     return NextResponse.json(
       { error: 'Failed to fetch Quran data' },
       { status: 500 }
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { action, surah, ayah, query, reciter } = await request.json();
+    console.log('[quran] ▶ POST', { action, surah, ayah, query, reciter });
 
     switch (action) {
 
@@ -68,17 +70,17 @@ export async function POST(request: NextRequest) {
           );
         }
         const audioData = await getAudioForAyah(parseInt(surah), parseInt(ayah), reciter);
-        console.log('Quran API Response - Audio Data:', audioData);
+        console.log('[quran] ◀ audio data', { audioUrl: audioData?.audioUrl });
         return NextResponse.json(audioData);
 
       case 'getRandomVerse':
         const randomVerse = await getRandomVerse();
-        console.log('Quran API Response - Random Verse:', randomVerse);
+        console.log('[quran] ◀ randomVerse', { surah: randomVerse?.surahNumber, ayah: randomVerse?.ayahNumber });
         return NextResponse.json(randomVerse);
 
       case 'getPopularVerses':
         const popularVerses = await getPopularVerses();
-        console.log('Quran API Response - Popular Verses:', popularVerses);
+        console.log('[quran] ◀ popularVerses', { count: popularVerses?.length });
         return NextResponse.json(popularVerses);
 
       default:
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error processing Quran request:', error);
+    console.error('[quran] ✗ processing error', error);
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

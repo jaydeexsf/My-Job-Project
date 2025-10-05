@@ -19,13 +19,14 @@ export async function GET(request: NextRequest) {
     const ayah = searchParams.get('ayah');
     const reciter = searchParams.get('reciter');
     const action = searchParams.get('action');
+    console.log('[audio] ▶ GET', { surah, ayah, reciter, action });
 
     // Return list of available reciters
     if (action === 'reciters') {
       const response = {
         reciters: Object.values(POPULAR_RECITERS)
       };
-      console.log('Audio API Response - Reciters:', response);
+      console.log('[audio] ◀ reciters', response.reciters?.length);
       return NextResponse.json(response);
     }
 
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
 
       try {
         const audioReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
+        console.log('[audio] … resolving audio', { surahNum, ayahNum, audioReciterId });
         const [audioData, surahData] = await Promise.all([
           getAudioForAyah(surahNum, ayahNum, audioReciterId),
           getSurah(surahNum)
@@ -55,10 +57,10 @@ export async function GET(request: NextRequest) {
           reciter: reciter || '1',
           reciterName: POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.name || 'Abdul Basit Murattal'
         };
-        console.log('Audio API Response - Audio for Ayah:', response);
+        console.log('[audio] ◀ audio for ayah', { urlKnown: !!response.audio?.audioUrl, url: response.audio?.audioUrl });
         return NextResponse.json(response);
       } catch (error) {
-        console.error('Error fetching audio:', error);
+        console.error('[audio] ✗ error fetching audio', error);
         return NextResponse.json(
           { error: 'Failed to fetch audio from Quran.com API' },
           { status: 500 }
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('Error in audio API:', error);
+    console.error('[audio] ✗ API error', error);
     return NextResponse.json(
       { error: 'Failed to process audio request' },
       { status: 500 }
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { action, verses, reciter, surah } = await request.json();
+    console.log('[audio] ▶ POST', { action, count: Array.isArray(verses) ? verses.length : undefined, reciter, surah });
 
     switch (action) {
       case 'playlist':
@@ -96,7 +99,7 @@ export async function POST(request: NextRequest) {
         
         const playlistReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
         const playlist = await createPlaylist(verses, playlistReciterId);
-        console.log('Audio API Response - Playlist:', playlist);
+        console.log('[audio] ◀ playlist', { totalTracks: playlist.totalTracks });
         return NextResponse.json(playlist);
 
       case 'surahAudio':
@@ -109,12 +112,12 @@ export async function POST(request: NextRequest) {
         
         const surahReciterId = POPULAR_RECITERS[reciter as keyof typeof POPULAR_RECITERS]?.id || 'Abdul_Basit_Murattal';
         const surahAudio = await getSurahAudio(parseInt(surah), surahReciterId);
-        console.log('Audio API Response - Surah Audio:', surahAudio);
+        console.log('[audio] ◀ surahAudio', { surah: surahAudio?.surahNumber, totalAyahs: surahAudio?.totalAyahs });
         return NextResponse.json(surahAudio);
 
       case 'popularRecitations':
         const popularRecitations = await getPopularRecitations();
-        console.log('Audio API Response - Popular Recitations:', popularRecitations);
+        console.log('[audio] ◀ popularRecitations', popularRecitations?.length);
         return NextResponse.json(popularRecitations);
 
       default:
@@ -125,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error processing audio request:', error);
+    console.error('[audio] ✗ processing error', error);
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

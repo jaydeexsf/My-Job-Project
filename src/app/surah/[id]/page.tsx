@@ -83,43 +83,46 @@ export default function SurahPage() {
             try {
                 setLoading(true);
                 // Load chapter meta
+                console.log('[SurahPage] ▶ load() start for surah', surahId);
                 const chRes = await fetch(`/api/quran?surah=${surahId}`);
-                console.log('[SurahPage] Fetch chapter meta status:', chRes.status);
+                console.log('[SurahPage] ✓ /api/quran?surah status:', chRes.status);
                 const chData = await chRes.json();
+                console.log('[SurahPage] ↩ chapter meta payload keys:', Object.keys(chData || {}));
                 const name = chData?.name_simple || chData?.chapter?.name_simple || "";
                 setChapterName(name);
 
                 const res = await fetch(`/api/transliteration?surah=${surahId}`);
-                console.log('[SurahPage] Fetch transliteration status:', res.status);
+                console.log('[SurahPage] ✓ /api/transliteration status:', res.status);
                 const data = await res.json();
-                console.log('[SurahPage] Transliteration items:', data?.items?.length);
+                console.log('[SurahPage] ↩ transliteration count:', data?.items?.length, 'example:', data?.items?.[0]);
                 setVerses(data.items || []);
                 setActiveAyah((data.items?.[0]?.ayah) ?? null);
                 setRepeatFrom(1);
                 setRepeatTo((data.items?.length ?? 1));
                 // timings for highlighting
                 const tRes = await fetch(`/api/timings?surah=${surahId}&reciter=1`);
-                console.log('[SurahPage] Fetch timings status:', tRes.status);
+                console.log('[SurahPage] ✓ /api/timings status:', tRes.status);
                 const tData = await tRes.json();
-                console.log('[SurahPage] Timings audioUrl:', tData?.audioUrl, 'segments:', tData?.segments?.length);
+                console.log('[SurahPage] ↩ timings audioUrl:', tData?.audioUrl, 'segments:', tData?.segments?.length, 'sample:', tData?.segments?.[0]);
                 if (tData?.segments) setSegments(tData.segments);
                 if (tData?.audioUrl) setAudioUrl(tData.audioUrl);
 
                 // Fallback to your Quran.com-backed audio endpoint if needed
                 if (!tData?.audioUrl) {
                     const aRes = await fetch(`/api/audio?surah=${surahId}&ayah=1&reciter=1`);
-                    console.log('[SurahPage] Fetch /api/audio status:', aRes.status);
+                    console.log('[SurahPage] ✓ /api/audio status:', aRes.status);
                     if (aRes.ok) {
                         const aData = await aRes.json();
                         const url = aData?.audio?.audioUrl;
-                        console.log('[SurahPage] /api/audio url:', url);
+                        console.log('[SurahPage] ↩ /api/audio url:', url, 'reciter:', aData?.reciter, aData?.reciterName);
                         if (url) setAudioUrl(url);
                     }
                 }
             } catch (e) {
-                console.error('[SurahPage] Load error:', e);
+                console.error('[SurahPage] ✗ load() error:', e);
             } finally {
                 setLoading(false);
+                console.log('[SurahPage] ◀ load() done');
             }
         }
         if (!Number.isNaN(surahId) && surahId > 0) load();
@@ -151,24 +154,24 @@ export default function SurahPage() {
     };
 
     const playFromRange = () => {
-        console.log('[SurahPage] PlayFromRange clicked', { audioUrl, useTimeRange, timeStartSec, timeEndSec, repeatFrom, repeatTo, repeatCount });
+        console.log('[SurahPage] ▶ PlayFromRange', { audioUrl, useTimeRange, timeStartSec, timeEndSec, repeatFrom, repeatTo, repeatCount, segments: segments.length });
         if (!audioUrl) {
-            console.warn('[SurahPage] No audioUrl available.');
+            console.warn('[SurahPage] ✗ No audioUrl available.');
             return;
         }
         const audio = audioRef.current;
-        if (!audio) { console.warn('[SurahPage] No audio element in DOM'); return; }
+        if (!audio) { console.warn('[SurahPage] ✗ No <audio> element'); return; }
         const segFrom = segmentByAyah[repeatFrom];
         const shouldUseTime = (useTimeRange || (timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec));
         const seekTo = shouldUseTime && timeStartSec != null
             ? Math.max(0, timeStartSec) + 0.01
             : (segFrom ? segFrom.start + 0.01 : 0);
-        console.log('[SurahPage] Seeking to', seekTo, 'for ayah', repeatFrom);
+        console.log('[SurahPage] ↦ seeking', seekTo, 'for ayah', repeatFrom, 'segFrom=', segFrom);
         audio.currentTime = seekTo;
         repeatCounterRef.current = 0;
         loopsDoneRef.current = 0;
         lastLoopAtMsRef.current = 0;
-        audio.play().then(() => { console.log('[SurahPage] audio play() resolved'); setIsPlaying(true); }).catch((err) => console.error('[SurahPage] play() failed', err));
+        audio.play().then(() => { console.log('[SurahPage] ✓ play()'); setIsPlaying(true); }).catch((err) => console.error('[SurahPage] ✗ play() failed', err));
         if (segments.length) setActiveAyah(repeatFrom);
     };
 
@@ -183,12 +186,12 @@ export default function SurahPage() {
             const shouldUseTime = (useTimeRange || (timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec));
             if (shouldUseTime && timeStartSec != null && audio.currentTime < (timeStartSec - 0.05)) {
                 const seekTo = Math.max(0, timeStartSec) + 0.01;
-                console.log('[SurahPage] togglePlayPause seek to start of range', seekTo);
+                console.log('[SurahPage] ↦ togglePlayPause seek to start', seekTo);
                 audio.currentTime = seekTo;
             }
-            audio.play().then(() => { setIsPlaying(true); console.log('[SurahPage] toggled → Play at', audio.currentTime); }).catch(err => console.error('[SurahPage] resume failed', err));
+            audio.play().then(() => { setIsPlaying(true); console.log('[SurahPage] ✓ toggled → Play at', audio.currentTime); }).catch(err => console.error('[SurahPage] ✗ resume failed', err));
         } else {
-            console.log('[SurahPage] toggled → Pause at', audio.currentTime);
+            console.log('[SurahPage] ⏸ toggled → Pause at', audio.currentTime);
             audio.pause();
             setIsPlaying(false);
         }
@@ -197,7 +200,7 @@ export default function SurahPage() {
     const pausePlayback = () => {
         const audio = audioRef.current;
         if (!audio) return;
-        console.log('[SurahPage] Pause pressed at', audio.currentTime);
+        console.log('[SurahPage] ⏸ Pause pressed at', audio.currentTime);
         audio.pause();
         setIsPlaying(false);
     };
@@ -205,7 +208,7 @@ export default function SurahPage() {
     const stopPlayback = () => {
         const audio = audioRef.current;
         if (!audio) return;
-        console.log('[SurahPage] Stop pressed at', audio.currentTime);
+        console.log('[SurahPage] ⏹ Stop pressed at', audio.currentTime);
         audio.pause();
         audio.currentTime = 0;
         setIsPlaying(false);
@@ -222,7 +225,11 @@ export default function SurahPage() {
             setCurrentTimeSec(t);
             // find segment containing t
             const seg = segments.find(s => t >= s.start && t <= s.end);
-            if (seg && seg.ayah !== activeAyah) setActiveAyah(seg.ayah);
+            if (seg && seg.ayah !== activeAyah) {
+                // Only log on changes to reduce spam
+                console.log('[SurahPage] ♪ timeupdate t=', t.toFixed(2), '→ ayah', seg.ayah, 'seg', seg);
+                setActiveAyah(seg.ayah);
+            }
 
             // Repeat logic: time range first if enabled, else ayah range
             if (useTimeRange && timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec) {
@@ -232,7 +239,7 @@ export default function SurahPage() {
                         loopsDoneRef.current += 1;
                         lastLoopAtMsRef.current = now;
                         const seek = Math.max(0, timeStartSec) + 0.01;
-                        console.log('[SurahPage] Loop (time range)', loopsDoneRef.current, 'seeking', seek);
+                        console.log('[SurahPage] ↻ loop (time)', loopsDoneRef.current, '/', repeatCount, 'seek', seek);
                         audio.currentTime = seek;
                     }
                 } else if (t < timeStartSec) {
@@ -248,7 +255,7 @@ export default function SurahPage() {
                             loopsDoneRef.current += 1;
                             lastLoopAtMsRef.current = now;
                             const seek = startSeg.start + 0.01;
-                            console.log('[SurahPage] Loop', loopsDoneRef.current, 'of', repeatCount - 1, 'seeking', seek);
+                            console.log('[SurahPage] ↻ loop (ayah)', loopsDoneRef.current, '/', repeatCount, 'seek', seek, 'range', repeatFrom, '-', repeatTo);
                             audio.currentTime = seek;
                             setActiveAyah(repeatFrom);
                         }
@@ -314,6 +321,11 @@ export default function SurahPage() {
                     <a href={audioUrl} download className="px-3 py-2 border rounded text-sm">Download</a>
                 </div>
             )}
+            {!audioUrl && (
+                <div className="mb-4 p-3 rounded bg-red-50 text-red-800 border border-red-200 text-sm">
+                    No audio URL available. Check network tab and console logs. Try clicking Restart.
+                </div>
+            )}
             {/* Tabs */}
             <div className="flex gap-2 mb-4">
                 <button onClick={() => setTab('memorize')} className={`px-3 py-2 rounded ${tab==='memorize' ? 'bg-emerald-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Memorize</button>
@@ -358,6 +370,15 @@ export default function SurahPage() {
                     <button onClick={playFromRange} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded cursor-pointer hover:opacity-90">Restart</button>
                     <button onClick={stopPlayback} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded cursor-pointer hover:opacity-90">Stop</button>
                 </div>
+            </div>
+
+            {/* Debug panel */}
+            <div className="mb-6 p-3 rounded border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300">
+                <div><strong>Debug</strong></div>
+                <div>surah: {surahId} | verses: {verses.length} | segments: {segments.length}</div>
+                <div>audioUrl: {audioUrl ? 'loaded' : '—'} | isPlaying: {String(isPlaying)} | activeAyah: {String(activeAyah)}</div>
+                <div>range ayah: {repeatFrom} → {repeatTo} × {repeatCount}</div>
+                <div>range time: {useTimeRange ? `${timeStart} → ${timeEnd}` : 'off'}</div>
             </div>
 
             {/* Optional time-based range */}
