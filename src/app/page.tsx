@@ -75,62 +75,7 @@ export default function Home() {
     }
   };
 
-  const playChapter = async (chapterId: number) => {
-    console.log('Button clicked: Playing chapter', chapterId);
-    
-    // If the same chapter is already playing, pause it
-    if (playingChapter === chapterId && currentAudio) {
-      console.log('Pausing current audio');
-      currentAudio.pause();
-      setPlayingChapter(null);
-      setCurrentAudio(null);
-      return;
-    }
-    
-    // If a different chapter is playing, stop it first
-    if (currentAudio) {
-      console.log('Stopping previous audio');
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    }
-    
-    try {
-      const response = await fetch(`/api/audio?surah=${chapterId}&ayah=1&reciter=1`);
-      const data = await response.json();
-      console.log('API Response received for audio:', data);
-      
-      if (data.audio?.audioUrl) {
-        setPlayingChapter(chapterId);
-        // Create audio element and play
-        const audio = new Audio(data.audio.audioUrl);
-        setCurrentAudio(audio);
-        
-        // Add event listeners for better debugging
-        audio.addEventListener('loadstart', () => console.log('Audio loading started'));
-        audio.addEventListener('canplay', () => console.log('Audio can start playing'));
-        audio.addEventListener('error', (e) => console.error('Audio error:', e));
-        audio.addEventListener('loadeddata', () => console.log('Audio data loaded'));
-        audio.addEventListener('ended', () => {
-          console.log('Audio ended');
-          setPlayingChapter(null);
-          setCurrentAudio(null);
-        });
-        
-        audio.play().catch(error => {
-          console.error('Error playing audio:', error);
-          // Try to provide more helpful error messages
-          if (error.name === 'NotSupportedError') {
-            console.error('Audio format not supported or URL invalid');
-          } else if (error.name === 'NotAllowedError') {
-            console.error('Audio playback blocked by browser - user interaction required');
-          }
-        });
-        console.log('Playing chapter:', chapterId, 'Audio URL:', data.audio.audioUrl);
-      }
-    } catch (error) {
-      console.error('Error playing chapter:', error);
-    }
-  };
+  // Removed inline play logic from the home cards; navigation to detail page instead
 
   return (
     <div className="min-h-screen">
@@ -210,23 +155,13 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {chapters.map((chapter) => (
-                <div key={chapter.id} className="group p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+                <Link key={chapter.id} href={`/surah/${chapter.id}`} className="group block p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">
                       {chapter.id}
                     </div>
-                    <button
-                      onClick={() => playChapter(chapter.id)}
-                      className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                    >
-                      {playingChapter === chapter.id ? (
-                        <PauseIcon className="w-5 h-5" />
-                      ) : (
-                        <PlayIcon className="w-5 h-5" />
-                      )}
-                    </button>
+                    <span className="text-emerald-600 group-hover:text-emerald-700 font-medium">Open →</span>
                   </div>
-                  
                   <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                     {chapter.name_simple}
                   </h3>
@@ -236,11 +171,10 @@ export default function Home() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {chapter.verses_count} verses
                   </p>
-                  
                   <div className="mt-4 text-right text-lg" dir="rtl">
                     {chapter.name_arabic}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

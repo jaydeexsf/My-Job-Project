@@ -57,7 +57,8 @@ export async function getAyah(surah: number, ayah: number) {
 		query: { 
 			page: Math.ceil(ayah / 10),
 			per_page: 10,
-			translations: '20' // English translation
+            translations: '20', // English translation
+            fields: 'text_uthmani'
 		} 
 	});
 	
@@ -117,4 +118,29 @@ export async function searchQuran(query: string, page = 1, perPage = 10) {
 		console.warn('Search failed:', error);
 		throw error;
 	}
+}
+
+// Fetch a range of verses for a given chapter (surah)
+export async function getVersesRangeByChapter(
+    surah: number,
+    fromAyah: number,
+    toAyah: number
+) {
+    // Use a single page fetch with large per_page to cover all verses in the surah
+    const response = await quranApiFetch<any>({
+        path: `/verses/by_chapter/${surah}`,
+        query: {
+            page: 1,
+            per_page: 300,
+            fields: 'text_uthmani',
+            translations: '20'
+        }
+    });
+
+    const verses = (response.verses || []).filter((v: any) => {
+        const n = v.verse_number;
+        return typeof n === 'number' && n >= fromAyah && n <= toAyah;
+    });
+
+    return verses;
 }
