@@ -63,6 +63,7 @@ export default function SurahPage() {
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
+    const hasScrolledOnce = useRef<boolean>(false);
     const segmentByAyah = useMemo(() => {
         const map: Record<number, { start: number; end: number }> = {};
         for (const s of segments) map[s.ayah] = { start: s.start, end: s.end };
@@ -185,6 +186,22 @@ export default function SurahPage() {
             }
 
             console.log('[Audio Analysis] Found', silencePeriods.length, 'silence periods');
+            console.log('[Audio Analysis] ═══════════════════════════════════════');
+            
+            // Log each silence period with timestamps
+            silencePeriods.forEach((period, index) => {
+                const startMin = Math.floor(period.start / 60);
+                const startSec = Math.floor(period.start % 60);
+                const startMs = Math.floor((period.start % 1) * 1000);
+                const endMin = Math.floor(period.end / 60);
+                const endSec = Math.floor(period.end % 60);
+                const endMs = Math.floor((period.end % 1) * 1000);
+                const durationMs = Math.floor((period.end - period.start) * 1000);
+                
+                console.log(`[Silence ${index + 1}] ${startMin}:${startSec.toString().padStart(2, '0')}.${startMs.toString().padStart(3, '0')} → ${endMin}:${endSec.toString().padStart(2, '0')}.${endMs.toString().padStart(3, '0')} (${durationMs}ms)`);
+            });
+
+            console.log('[Audio Analysis] ═══════════════════════════════════════');
 
             // Generate segments from silence periods
             const generatedSegments: { ayah: number; start: number; end: number }[] = [];
@@ -210,6 +227,22 @@ export default function SurahPage() {
             }
 
             console.log('[Audio Analysis] Generated', generatedSegments.length, 'segments');
+            console.log('[Audio Analysis] ═══════════════════════════════════════');
+            
+            // Log each generated segment with timestamps
+            generatedSegments.forEach((segment) => {
+                const startMin = Math.floor(segment.start / 60);
+                const startSec = Math.floor(segment.start % 60);
+                const startMs = Math.floor((segment.start % 1) * 1000);
+                const endMin = Math.floor(segment.end / 60);
+                const endSec = Math.floor(segment.end % 60);
+                const endMs = Math.floor((segment.end % 1) * 1000);
+                const durationSec = (segment.end - segment.start).toFixed(2);
+                
+                console.log(`[Verse ${segment.ayah}] ${startMin}:${startSec.toString().padStart(2, '0')}.${startMs.toString().padStart(3, '0')} → ${endMin}:${endSec.toString().padStart(2, '0')}.${endMs.toString().padStart(3, '0')} (${durationSec}s)`);
+            });
+            
+            console.log('[Audio Analysis] ═══════════════════════════════════════');
             
             // Save to localStorage for future use
             localStorage.setItem(`audio-segments-${surahId}`, JSON.stringify(generatedSegments));
@@ -457,14 +490,35 @@ export default function SurahPage() {
     // Auto-scroll the active ayah into view smoothly
     useEffect(() => {
         if (activeAyah == null) return;
-        const el = verseRefs.current[activeAyah];
-        if (el) {
-            try {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } catch {
-                // ignore
-            }
+        
+        // Don't scroll on initial load (first verse)
+        if (!hasScrolledOnce.current && activeAyah === 1) {
+            hasScrolledOnce.current = true;
+            console.log('[Auto-scroll] Skipping initial scroll for verse 1');
+            return;
         }
+        
+        // Use setTimeout to ensure DOM is ready and avoid rapid scroll conflicts
+        const scrollTimeout = setTimeout(() => {
+            const el = verseRefs.current[activeAyah];
+            if (el) {
+                try {
+                    console.log('[Auto-scroll] Scrolling to verse', activeAyah);
+                    el.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center',
+                        inline: 'nearest'
+                    });
+                    hasScrolledOnce.current = true;
+                } catch (error) {
+                    console.error('[Auto-scroll] Error:', error);
+                }
+            } else {
+                console.warn('[Auto-scroll] Element not found for verse', activeAyah);
+            }
+        }, 100);
+
+        return () => clearTimeout(scrollTimeout);
     }, [activeAyah]);
 
     // Next/Previous verse navigation
