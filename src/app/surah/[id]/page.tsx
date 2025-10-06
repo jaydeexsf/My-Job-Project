@@ -146,7 +146,8 @@ export default function SurahPage() {
             const arrayBuffer = await response.arrayBuffer();
 
             // Create audio context
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const audioContext = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
             // Get audio data
@@ -165,7 +166,7 @@ export default function SurahPage() {
             // Scan through audio in windows
             for (let i = 0; i < channelData.length; i += windowSize) {
                 const window = channelData.slice(i, i + windowSize);
-                const rms = Math.sqrt(window.reduce((sum, val) => sum + val * val, 0) / window.length);
+                const rms = Math.sqrt(window.reduce((sum: number, val: number) => sum + val * val, 0) / window.length);
                 const time = i / sampleRate;
 
                 if (rms < silenceThreshold) {

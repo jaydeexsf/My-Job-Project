@@ -58,12 +58,12 @@ export async function GET(request: NextRequest) {
                             byAyah[n] = v?.transliteration || v?.latin || v?.trans || '';
                         }
                     }
-                    items = items.map(it => ({
+                    items = items.map((it: any) => ({
                         ...it,
                         transliteration: byAyah[it.ayah] || it.transliteration
                     }));
                 }
-            } catch (e) {
+            } catch {
                 // fallback silently to local
             }
         }
