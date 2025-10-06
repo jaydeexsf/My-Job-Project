@@ -176,12 +176,13 @@ export default function SurahPage() {
         };
     }, [surahId]);
 
-    // Apply playback speed when it changes
+    // Apply playback speed when it changes or audio loads
     useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.playbackRate = playbackSpeed;
+        const audio = audioRef.current;
+        if (audio && audioUrl) {
+            audio.playbackRate = playbackSpeed;
         }
-    }, [playbackSpeed]);
+    }, [playbackSpeed, audioUrl]);
 
     const handleSelectAyah = (n: number) => {
         setActiveAyah(n);
@@ -259,16 +260,20 @@ export default function SurahPage() {
 
     // Sync highlight to audio time using segments and handle repeat range
     useEffect(() => {
-        if (!audioUrl || !segments.length) return;
+        if (!audioUrl) return;
         const audio = audioRef.current;
         if (!audio) return;
+
         const onTime = () => {
             const t = audio.currentTime;
             setCurrentTimeSec(t);
+            
             // find segment containing t
-            const seg = segments.find(s => t >= s.start && t <= s.end);
-            if (seg && seg.ayah !== activeAyah) {
-                setActiveAyah(seg.ayah);
+            if (segments.length > 0) {
+                const seg = segments.find(s => t >= s.start && t <= s.end);
+                if (seg && seg.ayah !== activeAyah) {
+                    setActiveAyah(seg.ayah);
+                }
             }
 
             // Repeat logic: time range first if enabled, else ayah range
@@ -284,7 +289,7 @@ export default function SurahPage() {
                 } else if (t < timeStartSec) {
                     audio.currentTime = Math.max(0, timeStartSec) + 0.01;
                 }
-            } else {
+            } else if (segments.length > 0) {
                 const endSeg = segmentByAyah[repeatTo];
                 const startSeg = segmentByAyah[repeatFrom];
                 if (startSeg && endSeg) {
@@ -298,24 +303,35 @@ export default function SurahPage() {
                             setActiveAyah(repeatFrom);
                         }
                     } else if (t < startSeg.start) {
-                        // guard: if user scrubs earlier, snap to start
                         audio.currentTime = startSeg.start + 0.01;
                     }
                 }
             }
         };
+
         const onLoaded = () => { 
             const d = audio.duration || 0; 
-            setDurationSec(d); 
+            setDurationSec(d);
+            // Apply playback speed when audio loads
+            audio.playbackRate = playbackSpeed;
         };
+
         audio.addEventListener('timeupdate', onTime);
         audio.addEventListener('loadedmetadata', onLoaded);
+        audio.addEventListener('durationchange', onLoaded);
+
+        // Check if already loaded
+        if (audio.duration) {
+            setDurationSec(audio.duration);
+            audio.playbackRate = playbackSpeed;
+        }
+
         return () => {
             audio.removeEventListener('timeupdate', onTime);
             audio.removeEventListener('loadedmetadata', onLoaded);
-            try { audio.pause(); } catch {}
+            audio.removeEventListener('durationchange', onLoaded);
         };
-    }, [audioUrl, segments, repeatFrom, repeatTo, repeatCount, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, activeAyah]);
+    }, [audioUrl, segments, repeatFrom, repeatTo, repeatCount, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, playbackSpeed]);
 
     // Pause when page loses visibility and cleanup on unmount
     useEffect(() => {
@@ -399,7 +415,7 @@ export default function SurahPage() {
                 </div>
 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div className="w-full hidden bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div 
                         className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-500 ease-out"
                         style={{ width: `${progressPercent}%` }}
@@ -410,10 +426,10 @@ export default function SurahPage() {
             {/* Audio Player */}
             {audioUrl && (
                 <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <audio ref={audioRef} src={audioUrl} className="hidden" />
+                    <audio ref={audioRef} src={audioUrl} preload="metadata" style={{ display: 'none' }} />
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <div className="flex-1 w-full">
-                            <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-3 mb-3">
                                 <button 
                                     onClick={togglePlayPause}
                                     className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-105"
@@ -434,13 +450,38 @@ export default function SurahPage() {
                                 </div>
                             </div>
                             
+                            {/* Audio Progress Bar */}
+                            <div className="mb-3">
+                                <div 
+                                    className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 cursor-pointer overflow-hidden"
+                                    onClick={(e) => {
+                                        if (!audioRef.current || !durationSec) return;
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const x = e.clientX - rect.left;
+                                        const percentage = x / rect.width;
+                                        const newTime = percentage * durationSec;
+                                        audioRef.current.currentTime = newTime;
+                                    }}
+                                >
+                                    <div 
+                                        className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-100"
+                                        style={{ width: `${durationSec > 0 ? (currentTimeSec / durationSec) * 100 : 0}%` }}
+                                    />
+                                </div>
+                            </div>
+                            
                             {/* Playback Speed */}
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Speed:</span>
                                 {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
                                     <button
                                         key={speed}
-                                        onClick={() => setPlaybackSpeed(speed)}
+                                        onClick={() => {
+                                            setPlaybackSpeed(speed);
+                                            if (audioRef.current) {
+                                                audioRef.current.playbackRate = speed;
+                                            }
+                                        }}
                                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
                                             playbackSpeed === speed
                                                 ? 'bg-emerald-600 text-white shadow-md'
@@ -570,7 +611,12 @@ export default function SurahPage() {
                                         {isPlaying ? '⏸ Pause' : '▶ Play'}
                                     </button>
                                     <button
-                                        onClick={() => { setRepeatCount(3); playFromRange(); }}
+                                        onClick={() => { 
+                                            setRepeatCount(3);
+                                            setRepeatFrom(activeAyah || 1);
+                                            setRepeatTo(activeAyah || 1);
+                                            setTimeout(() => playFromRange(), 50);
+                                        }}
                                         className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105"
                                     >
                                         🔁 Repeat 3x
