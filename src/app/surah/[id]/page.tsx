@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 type VerseItem = {
     surah: number;
@@ -40,7 +40,7 @@ export default function SurahPage() {
     const [beginnerMode, setBeginnerMode] = useState<boolean>(true);
     const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
     const [verseStatus, setVerseStatus] = useState<Record<number, MemorizationStatus>>({});
-    const [dailyGoal, setDailyGoal] = useState<number>(1);
+    const [dailyGoal] = useState<number>(1);
     const [versesMemorizedToday, setVersesMemorizedToday] = useState<number>(0);
 
     // Flashcard mode
@@ -61,6 +61,7 @@ export default function SurahPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [segments, setSegments] = useState<{ ayah: number; start: number; end: number }[]>([]);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const segmentByAyah = useMemo(() => {
         const map: Record<number, { start: number; end: number }> = {};
@@ -134,6 +135,95 @@ export default function SurahPage() {
         return `${mm}:${ss.toString().padStart(2, '0')}`;
     };
 
+    // Analyze audio to detect silence and auto-generate verse segments
+    const analyzeAudioForSegments = async (audioUrl: string, verseCount: number) => {
+        try {
+            setIsAnalyzingAudio(true);
+            console.log('[Audio Analysis] Starting silence detection for', verseCount, 'verses');
+
+            // Fetch audio file
+            const response = await fetch(audioUrl);
+            const arrayBuffer = await response.arrayBuffer();
+
+            // Create audio context
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // Get audio data
+            const channelData = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
+            const duration = audioBuffer.duration;
+
+            // Detect silence periods
+            const silenceThreshold = 0.02; // Amplitude threshold for silence
+            const minSilenceDuration = 0.3; // Minimum 300ms silence between verses
+            const windowSize = Math.floor(sampleRate * 0.1); // 100ms window
+
+            const silencePeriods: { start: number; end: number }[] = [];
+            let silenceStart: number | null = null;
+
+            // Scan through audio in windows
+            for (let i = 0; i < channelData.length; i += windowSize) {
+                const window = channelData.slice(i, i + windowSize);
+                const rms = Math.sqrt(window.reduce((sum, val) => sum + val * val, 0) / window.length);
+                const time = i / sampleRate;
+
+                if (rms < silenceThreshold) {
+                    if (silenceStart === null) {
+                        silenceStart = time;
+                    }
+                } else {
+                    if (silenceStart !== null) {
+                        const silenceDuration = time - silenceStart;
+                        if (silenceDuration >= minSilenceDuration) {
+                            silencePeriods.push({ start: silenceStart, end: time });
+                        }
+                        silenceStart = null;
+                    }
+                }
+            }
+
+            console.log('[Audio Analysis] Found', silencePeriods.length, 'silence periods');
+
+            // Generate segments from silence periods
+            const generatedSegments: { ayah: number; start: number; end: number }[] = [];
+            let currentStart = 0;
+
+            for (let i = 0; i < Math.min(silencePeriods.length, verseCount - 1); i++) {
+                const silenceMiddle = (silencePeriods[i].start + silencePeriods[i].end) / 2;
+                generatedSegments.push({
+                    ayah: i + 1,
+                    start: currentStart,
+                    end: silenceMiddle
+                });
+                currentStart = silenceMiddle;
+            }
+
+            // Add last verse
+            if (generatedSegments.length < verseCount) {
+                generatedSegments.push({
+                    ayah: verseCount,
+                    start: currentStart,
+                    end: duration
+                });
+            }
+
+            console.log('[Audio Analysis] Generated', generatedSegments.length, 'segments');
+            
+            // Save to localStorage for future use
+            localStorage.setItem(`audio-segments-${surahId}`, JSON.stringify(generatedSegments));
+            
+            setSegments(generatedSegments);
+            setIsAnalyzingAudio(false);
+            
+            return generatedSegments;
+        } catch (error) {
+            console.error('[Audio Analysis] Error:', error);
+            setIsAnalyzingAudio(false);
+            return [];
+        }
+    };
+
     useEffect(() => {
         const controller = new AbortController();
         async function load() {
@@ -146,22 +236,57 @@ export default function SurahPage() {
 
                 const res = await fetch(`/api/transliteration?surah=${surahId}`);
                 const data = await res.json();
-                setVerses(data.items || []);
-                setActiveAyah((data.items?.[0]?.ayah) ?? null);
+                const verseItems = data.items || [];
+                setVerses(verseItems);
+                setActiveAyah((verseItems?.[0]?.ayah) ?? null);
                 setRepeatFrom(1);
-                setRepeatTo((data.items?.length ?? 1));
+                setRepeatTo((verseItems?.length ?? 1));
                 
                 const tRes = await fetch(`/api/timings?surah=${surahId}&reciter=1`);
                 const tData = await tRes.json();
-                if (tData?.segments) setSegments(tData.segments);
-                if (tData?.audioUrl) setAudioUrl(tData.audioUrl);
+                let audioUrlToUse = tData?.audioUrl;
+                
+                // Check if we have segments from API
+                if (tData?.segments && tData.segments.length > 0) {
+                    setSegments(tData.segments);
+                    console.log('[SurahPage] Using API segments:', tData.segments.length);
+                } else {
+                    // Try to load cached segments from localStorage
+                    const cachedSegments = localStorage.getItem(`audio-segments-${surahId}`);
+                    if (cachedSegments) {
+                        try {
+                            const parsed = JSON.parse(cachedSegments);
+                            setSegments(parsed);
+                            console.log('[SurahPage] Using cached segments:', parsed.length);
+                        } catch {}
+                    }
+                }
 
-                if (!tData?.audioUrl) {
+                if (audioUrlToUse) {
+                    setAudioUrl(audioUrlToUse);
+                } else {
                     const aRes = await fetch(`/api/audio?surah=${surahId}&ayah=1&reciter=1`);
                     if (aRes.ok) {
                         const aData = await aRes.json();
                         const url = aData?.audio?.audioUrl;
-                        if (url) setAudioUrl(url);
+                        if (url) {
+                            audioUrlToUse = url;
+                            setAudioUrl(url);
+                        }
+                    }
+                }
+
+                // If we have audio but no segments, analyze the audio
+                if (audioUrlToUse && verseItems.length > 0) {
+                    const hasSegments = tData?.segments && tData.segments.length > 0;
+                    const hasCachedSegments = localStorage.getItem(`audio-segments-${surahId}`);
+                    
+                    if (!hasSegments && !hasCachedSegments) {
+                        console.log('[SurahPage] No segments found, analyzing audio...');
+                        // Analyze audio in background
+                        setTimeout(() => {
+                            analyzeAudioForSegments(audioUrlToUse!, verseItems.length);
+                        }, 1000);
                     }
                 }
             } catch (e) {
@@ -191,20 +316,6 @@ export default function SurahPage() {
 
     const visibleVerses = verses; // could paginate later
 
-    const currentArabic = useMemo(() => {
-        return visibleVerses.find(v => v.ayah === activeAyah)?.arabic ?? '';
-    }, [visibleVerses, activeAyah]);
-
-    const currentTranslit = useMemo(() => {
-        return visibleVerses.find(v => v.ayah === activeAyah)?.transliteration ?? '';
-    }, [visibleVerses, activeAyah]);
-
-    const startRepeat = () => {
-        if (!visibleVerses.length) return;
-        // Simple verse-by-verse repeat cycling; no audio time slicing yet
-        repeatCounterRef.current = 0;
-        setActiveAyah(repeatFrom);
-    };
 
     const playFromRange = () => {
         if (!audioUrl) return;
@@ -249,14 +360,6 @@ export default function SurahPage() {
         setIsPlaying(false);
     };
 
-    const stopPlayback = () => {
-        const audio = audioRef.current;
-        if (!audio) return;
-        audio.pause();
-        audio.currentTime = 0;
-        setIsPlaying(false);
-        setActiveAyah(repeatFrom || activeAyah);
-    };
 
     // Sync highlight to audio time using segments and handle repeat range
     useEffect(() => {
@@ -295,7 +398,7 @@ export default function SurahPage() {
                 if (startSeg && endSeg) {
                     if (t > endSeg.end - 0.05) {
                         const now = Date.now();
-                        if (loopsDoneRef.current < repeatCount - 1 && now - lastLoopAtMsRef.current > 700) {
+                        if (loopsDoneRef.current < repeatCount && now - lastLoopAtMsRef.current > 700) {
                             loopsDoneRef.current += 1;
                             lastLoopAtMsRef.current = now;
                             const seek = startSeg.start + 0.01;
@@ -357,7 +460,7 @@ export default function SurahPage() {
         if (el) {
             try {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } catch (_) {
+            } catch {
                 // ignore
             }
         }
@@ -399,7 +502,7 @@ export default function SurahPage() {
                     
                     {/* Daily Goal Tracker */}
                     <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
-                        <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">TODAY'S GOAL</div>
+                        <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">TODAY&apos;S GOAL</div>
                         <div className="flex items-center gap-2">
                             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                                 {versesMemorizedToday}/{dailyGoal}
@@ -514,6 +617,21 @@ export default function SurahPage() {
                             <h3 className="font-semibold text-red-800 dark:text-red-300 mb-1">Audio Not Available</h3>
                             <p className="text-sm text-red-700 dark:text-red-400">
                                 Unable to load audio. Please refresh the page or try selecting a different reciter.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Audio Analysis Indicator */}
+            {isAnalyzingAudio && (
+                <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin flex-shrink-0 mt-0.5"></div>
+                        <div>
+                            <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-1">Analyzing Audio...</h3>
+                            <p className="text-sm text-blue-700 dark:text-blue-400">
+                                Detecting verse boundaries using silence detection. This may take a moment.
                             </p>
                         </div>
                     </div>
