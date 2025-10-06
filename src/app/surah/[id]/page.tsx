@@ -204,17 +204,20 @@ export default function SurahPage() {
             console.log('[Audio Analysis] ═══════════════════════════════════════');
 
             // Generate segments from silence periods
+            // Each verse includes its pause, next verse starts after the pause
             const generatedSegments: { ayah: number; start: number; end: number }[] = [];
             let currentStart = 0;
 
             for (let i = 0; i < Math.min(silencePeriods.length, verseCount - 1); i++) {
-                const silenceMiddle = (silencePeriods[i].start + silencePeriods[i].end) / 2;
+                // Use the END of silence as the verse boundary (not the middle)
+                // This way the verse stays highlighted during the pause
+                const silenceEnd = silencePeriods[i].end;
                 generatedSegments.push({
                     ayah: i + 1,
                     start: currentStart,
-                    end: silenceMiddle
+                    end: silenceEnd
                 });
-                currentStart = silenceMiddle;
+                currentStart = silenceEnd;
             }
 
             // Add last verse
@@ -360,12 +363,16 @@ export default function SurahPage() {
         const seekTo = shouldUseTime && timeStartSec != null
             ? Math.max(0, timeStartSec) + 0.01
             : (segFrom ? segFrom.start + 0.01 : 0);
+        console.log(`[Play] Starting from verse ${repeatFrom} at ${formatTime(seekTo)}`);
         audio.currentTime = seekTo;
         repeatCounterRef.current = 0;
         loopsDoneRef.current = 0;
         lastLoopAtMsRef.current = 0;
         audio.play().then(() => { setIsPlaying(true); }).catch((err) => console.error('Play failed:', err));
-        if (segments.length) setActiveAyah(repeatFrom);
+        if (segments.length) {
+            console.log(`[Play] Setting active verse to ${repeatFrom}`);
+            setActiveAyah(repeatFrom);
+        }
     };
 
     const togglePlayPause = () => {
@@ -409,6 +416,7 @@ export default function SurahPage() {
             if (segments.length > 0) {
                 const seg = segments.find(s => t >= s.start && t <= s.end);
                 if (seg && seg.ayah !== activeAyah) {
+                    console.log(`[Verse Change] ${formatTime(t)} → Verse ${seg.ayah} (was ${activeAyah})`);
                     setActiveAyah(seg.ayah);
                 }
             }
