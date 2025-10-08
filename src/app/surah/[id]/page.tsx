@@ -280,8 +280,6 @@ export default function SurahPage() {
                 const verseItems = data.items || [];
                 setVerses(verseItems);
                 setActiveAyah((verseItems?.[0]?.ayah) ?? null);
-                setRepeatFrom(1);
-                setRepeatTo((verseItems?.length ?? 1));
                 
                 const tRes = await fetch(`/api/timings?surah=${surahId}&reciter=1`);
                 const tData = await tRes.json();
@@ -546,16 +544,12 @@ export default function SurahPage() {
     const goToNextVerse = () => {
         if (activeAyah && activeAyah < verses.length) {
             setActiveAyah(activeAyah + 1);
-            setRepeatFrom(activeAyah + 1);
-            setRepeatTo(activeAyah + 1);
         }
     };
 
     const goToPrevVerse = () => {
         if (activeAyah && activeAyah > 1) {
             setActiveAyah(activeAyah - 1);
-            setRepeatFrom(activeAyah - 1);
-            setRepeatTo(activeAyah - 1);
         }
     };
 
