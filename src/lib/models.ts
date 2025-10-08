@@ -44,12 +44,21 @@ const competitionRecitationSchema = new Schema(
 		audioPath: { type: String, required: true }, // Path to audio file
 		likes: [{ type: String }], // Array of user IDs who liked
 		likeCount: { type: Number, default: 0 },
+		ratings: [{ 
+			userId: { type: String, required: true },
+			rating: { type: Number, required: true, min: 1, max: 5 },
+			createdAt: { type: Date, default: Date.now }
+		}],
+		averageRating: { type: Number, default: 0 },
+		ratingCount: { type: Number, default: 0 },
+		bookmarkedBy: [{ type: String }], // Array of user IDs who bookmarked
 	},
 	{ timestamps: true }
 );
 
 competitionRecitationSchema.index({ surah: 1, likeCount: -1 });
 competitionRecitationSchema.index({ userId: 1, createdAt: -1 });
+competitionRecitationSchema.index({ averageRating: -1, createdAt: -1 });
 
 export type CompetitionRecitation = InferSchemaType<typeof competitionRecitationSchema>;
 export const CompetitionRecitationModel =

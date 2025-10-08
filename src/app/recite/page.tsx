@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getMachineId } from "@/lib/machineId";
 import { getSurahName } from "@/lib/surahNames";
-import { Heart, Trophy, Mic, Upload } from "lucide-react";
+import { Heart, Trophy, Mic, Upload, Star, Bookmark, Clock, TrendingUp } from "lucide-react";
 
 interface Recitation {
   _id: string;
@@ -13,8 +13,12 @@ interface Recitation {
   audioPath: string;
   likes: string[];
   likeCount: number;
-  rank: number;
+  rank?: number;
   createdAt: string;
+  ratings?: Array<{ userId: string; rating: number; createdAt: Date }>;
+  averageRating?: number;
+  ratingCount?: number;
+  bookmarkedBy?: string[];
 }
 
 export default function ReciteCompetitionPage() {
@@ -25,9 +29,14 @@ export default function ReciteCompetitionPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [rankings, setRankings] = useState<Recitation[]>([]);
+  const [latestRecitations, setLatestRecitations] = useState<Recitation[]>([]);
+  const [bookmarkedRecitations, setBookmarkedRecitations] = useState<Recitation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<"submit" | "rankings">("submit");
+  const [viewMode, setViewMode] = useState<"submit" | "rankings" | "latest" | "bookmarks">("submit");
   const [filterSurah, setFilterSurah] = useState<number | "">("");
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [selectedRecitationForRating, setSelectedRecitationForRating] = useState<string | null>(null);
+  const [selectedRating, setSelectedRating] = useState<number>(0);
 
   // Initialize user ID
   useEffect(() => {
@@ -54,11 +63,51 @@ export default function ReciteCompetitionPage() {
     }
   };
 
+  // Load latest recitations
+  const loadLatestRecitations = async (surah?: number) => {
+    try {
+      setLoading(true);
+      const url = surah 
+        ? `/api/competition/latest?surah=${surah}&limit=20`
+        : `/api/competition/latest?limit=20`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success) {
+        setLatestRecitations(data.data);
+      }
+    } catch (error) {
+      console.error("Error loading latest recitations:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load bookmarked recitations
+  const loadBookmarkedRecitations = async () => {
+    if (!userId) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/competition/bookmark?userId=${userId}`);
+      const data = await res.json();
+      if (data.success) {
+        setBookmarkedRecitations(data.data);
+      }
+    } catch (error) {
+      console.error("Error loading bookmarked recitations:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (viewMode === "rankings") {
       loadRankings(filterSurah || undefined);
+    } else if (viewMode === "latest") {
+      loadLatestRecitations(filterSurah || undefined);
+    } else if (viewMode === "bookmarks") {
+      loadBookmarkedRecitations();
     }
-  }, [viewMode, filterSurah]);
+  }, [viewMode, filterSurah, userId]);
 
   // Start recording
   const startRecording = async () => {
@@ -162,12 +211,84 @@ export default function ReciteCompetitionPage() {
 
       const data = await res.json();
       if (data.success) {
-        // Reload rankings to show updated likes
-        loadRankings(filterSurah || undefined);
+        // Reload current view to show updated likes
+        refreshCurrentView();
       }
     } catch (error) {
       console.error("Error toggling like:", error);
     }
+  };
+
+  // Bookmark/unbookmark recitation
+  const toggleBookmark = async (recitationId: string) => {
+    try {
+      const res = await fetch("/api/competition/bookmark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recitationId, userId }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        // Reload current view to show updated bookmarks
+        refreshCurrentView();
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+    }
+  };
+
+  // Open rating modal
+  const openRatingModal = (recitationId: string, currentRating?: number) => {
+    setSelectedRecitationForRating(recitationId);
+    setSelectedRating(currentRating || 0);
+    setRatingModalOpen(true);
+  };
+
+  // Submit rating
+  const submitRating = async () => {
+    if (!selectedRecitationForRating || selectedRating === 0) return;
+
+    try {
+      const res = await fetch("/api/competition/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recitationId: selectedRecitationForRating,
+          userId,
+          rating: selectedRating,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setRatingModalOpen(false);
+        setSelectedRecitationForRating(null);
+        setSelectedRating(0);
+        // Reload current view to show updated ratings
+        refreshCurrentView();
+      }
+    } catch (error) {
+      console.error("Error submitting rating:", error);
+    }
+  };
+
+  // Refresh current view
+  const refreshCurrentView = () => {
+    if (viewMode === "rankings") {
+      loadRankings(filterSurah || undefined);
+    } else if (viewMode === "latest") {
+      loadLatestRecitations(filterSurah || undefined);
+    } else if (viewMode === "bookmarks") {
+      loadBookmarkedRecitations();
+    }
+  };
+
+  // Get user's rating for a recitation
+  const getUserRating = (recitation: Recitation): number => {
+    if (!recitation.ratings) return 0;
+    const userRating = recitation.ratings.find(r => r.userId === userId);
+    return userRating ? userRating.rating : 0;
   };
 
 
@@ -181,7 +302,7 @@ export default function ReciteCompetitionPage() {
       </div>
 
       {/* View Mode Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setViewMode("submit")}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -194,6 +315,17 @@ export default function ReciteCompetitionPage() {
           Submit Recitation
         </button>
         <button
+          onClick={() => setViewMode("latest")}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            viewMode === "latest"
+              ? "bg-emerald-500 text-white"
+              : "bg-white/5 hover:bg-white/10"
+          }`}
+        >
+          <Clock className="w-4 h-4 inline mr-2" />
+          Latest
+        </button>
+        <button
           onClick={() => setViewMode("rankings")}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             viewMode === "rankings"
@@ -202,7 +334,18 @@ export default function ReciteCompetitionPage() {
           }`}
         >
           <Trophy className="w-4 h-4 inline mr-2" />
-          Rankings
+          Top Rated
+        </button>
+        <button
+          onClick={() => setViewMode("bookmarks")}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            viewMode === "bookmarks"
+              ? "bg-emerald-500 text-white"
+              : "bg-white/5 hover:bg-white/10"
+          }`}
+        >
+          <Bookmark className="w-4 h-4 inline mr-2" />
+          My Bookmarks
         </button>
       </div>
 
@@ -299,90 +442,182 @@ export default function ReciteCompetitionPage() {
         </div>
       )}
 
-      {/* Rankings Mode */}
-      {viewMode === "rankings" && (
+      {/* Render Recitation Card */}
+      {(viewMode === "rankings" || viewMode === "latest" || viewMode === "bookmarks") && (
         <div className="space-y-4">
-          <div className="flex gap-2 items-center">
-            <label className="text-sm font-medium">Filter by Surah:</label>
-            <select
-              value={filterSurah}
-              onChange={(e) => setFilterSurah(e.target.value ? Number(e.target.value) : "")}
-              className="px-4 py-2 rounded-lg bg-white/10 border border-white/20"
-            >
-              <option value="">All Surahs</option>
-              {Array.from({ length: 114 }, (_, i) => i + 1).map((num) => (
-                <option key={num} value={num}>
-                  {num}. {getSurahName(num)}
-                </option>
-              ))}
-            </select>
-          </div>
+          {viewMode !== "bookmarks" && (
+            <div className="flex gap-2 items-center">
+              <label className="text-sm font-medium">Filter by Surah:</label>
+              <select
+                value={filterSurah}
+                onChange={(e) => setFilterSurah(e.target.value ? Number(e.target.value) : "")}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20"
+              >
+                <option value="">All Surahs</option>
+                {Array.from({ length: 114 }, (_, i) => i + 1).map((num) => (
+                  <option key={num} value={num}>
+                    {num}. {getSurahName(num)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {loading && (
-            <div className="text-center py-8">Loading rankings...</div>
+            <div className="text-center py-8">Loading...</div>
           )}
 
-          {!loading && rankings.length === 0 && (
+          {!loading && 
+           ((viewMode === "rankings" && rankings.length === 0) ||
+            (viewMode === "latest" && latestRecitations.length === 0) ||
+            (viewMode === "bookmarks" && bookmarkedRecitations.length === 0)) && (
             <div className="text-center py-8 text-gray-400">
-              No recitations yet. Be the first to submit!
+              {viewMode === "bookmarks" 
+                ? "No bookmarked recitations yet."
+                : "No recitations yet. Be the first to submit!"}
             </div>
           )}
 
-          {!loading && rankings.length > 0 && (
+          {!loading && (
             <div className="space-y-3">
-              {rankings.map((rec) => (
-                <div
-                  key={rec._id}
-                  className={`p-4 rounded-xl border ${
-                    rec.rank === 1
-                      ? "bg-yellow-500/10 border-yellow-500/50"
-                      : rec.rank === 2
-                      ? "bg-gray-400/10 border-gray-400/50"
-                      : rec.rank === 3
-                      ? "bg-orange-600/10 border-orange-600/50"
-                      : "bg-white/5 border-white/10"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`text-2xl font-bold ${
-                        rec.rank === 1 ? "text-yellow-500" :
-                        rec.rank === 2 ? "text-gray-400" :
-                        rec.rank === 3 ? "text-orange-600" :
-                        "text-gray-500"
-                      }`}>
-                        #{rec.rank}
+              {(viewMode === "rankings" ? rankings : 
+                viewMode === "latest" ? latestRecitations : 
+                bookmarkedRecitations).map((rec) => {
+                const userRating = getUserRating(rec);
+                const isBookmarked = rec.bookmarkedBy?.includes(userId) || false;
+                
+                return (
+                  <div
+                    key={rec._id}
+                    className={`p-4 rounded-xl border ${
+                      rec.rank === 1
+                        ? "bg-yellow-500/10 border-yellow-500/50"
+                        : rec.rank === 2
+                        ? "bg-gray-400/10 border-gray-400/50"
+                        : rec.rank === 3
+                        ? "bg-orange-600/10 border-orange-600/50"
+                        : "bg-white/5 border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {rec.rank && (
+                          <div className={`text-2xl font-bold ${
+                            rec.rank === 1 ? "text-yellow-500" :
+                            rec.rank === 2 ? "text-gray-400" :
+                            rec.rank === 3 ? "text-orange-600" :
+                            "text-gray-500"
+                          }`}>
+                            #{rec.rank}
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-semibold">
+                            {getSurahName(rec.surah)}
+                            {rec.ayah && ` - Verse ${rec.ayah}`}
+                          </div>
+                          <div className="text-sm text-gray-400 flex items-center gap-3">
+                            <span>{new Date(rec.createdAt).toLocaleDateString()}</span>
+                            {rec.averageRating !== undefined && rec.ratingCount !== undefined && rec.ratingCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                                {rec.averageRating.toFixed(1)} ({rec.ratingCount})
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold">
-                          {getSurahName(rec.surah)}
-                          {rec.ayah && ` - Verse ${rec.ayah}`}
-                        </div>
-                        <div className="text-sm text-gray-400">
-                          {new Date(rec.createdAt).toLocaleDateString()}
-                        </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleLike(rec._id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                            rec.likes.includes(userId)
+                              ? "bg-red-500 text-white"
+                              : "bg-white/10 hover:bg-white/20"
+                          }`}
+                        >
+                          <Heart
+                            className="w-4 h-4"
+                            fill={rec.likes.includes(userId) ? "currentColor" : "none"}
+                          />
+                          {rec.likeCount}
+                        </button>
+                        <button
+                          onClick={() => toggleBookmark(rec._id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                            isBookmarked
+                              ? "bg-blue-500 text-white"
+                              : "bg-white/10 hover:bg-white/20"
+                          }`}
+                        >
+                          <Bookmark
+                            className="w-4 h-4"
+                            fill={isBookmarked ? "currentColor" : "none"}
+                          />
+                        </button>
+                        <button
+                          onClick={() => openRatingModal(rec._id, userRating)}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                            userRating > 0
+                              ? "bg-yellow-500 text-white"
+                              : "bg-white/10 hover:bg-white/20"
+                          }`}
+                        >
+                          <Star
+                            className="w-4 h-4"
+                            fill={userRating > 0 ? "currentColor" : "none"}
+                          />
+                          {userRating > 0 ? userRating : "Rate"}
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => toggleLike(rec._id)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                        rec.likes.includes(userId)
-                          ? "bg-red-500 text-white"
-                          : "bg-white/10 hover:bg-white/20"
-                      }`}
-                    >
-                      <Heart
-                        className="w-4 h-4"
-                        fill={rec.likes.includes(userId) ? "currentColor" : "none"}
-                      />
-                      {rec.likeCount}
-                    </button>
+                    <audio src={rec.audioPath} controls className="w-full" />
                   </div>
-                  <audio src={rec.audioPath} controls className="w-full" />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {ratingModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRatingModalOpen(false)}>
+          <div className="bg-gray-900 p-6 rounded-xl border border-white/10 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4">Rate this Recitation</h3>
+            <div className="flex gap-2 justify-center mb-6">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setSelectedRating(star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-10 h-10 ${
+                      star <= selectedRating
+                        ? "fill-yellow-500 text-yellow-500"
+                        : "text-gray-400"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setRatingModalOpen(false)}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRating}
+                disabled={selectedRating === 0}
+                className="flex-1 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Rating
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
