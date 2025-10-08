@@ -1,86 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { quranApiFetch, getSurah } from '@/lib/quranApi';
+import { smartQuranSearch, QuranSearchResult } from '@/lib/quranSearchApi';
 
-// Simple audio fingerprinting simulation - In a real app, you'd use actual audio analysis
-async function identifyVerseFromAudio(audioData: string): Promise<any> {
-  // For demonstration, we'll simulate verse identification
-  // In a real implementation, you would:
-  // 1. Convert audio to features/fingerprints
-  // 2. Compare against a database of Quran recitation fingerprints
-  // 3. Return the best match
+// Real audio transcription and Quran search
+async function identifyVerseFromAudio(audioData: string, mimeType: string): Promise<any> {
+  console.log('🎤 Starting REAL audio analysis...');
+  console.log('📊 Audio data size:', (audioData.length / 1024).toFixed(2), 'KB');
+  console.log('🎧 MIME type:', mimeType);
   
-  // Sample verses for demonstration
-  const sampleVerses = [
-    {
-      surah: 1,
-      ayah: 1,
-      text: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
-      translation: "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
-      confidence: 0.95,
-      surahName: "Al-Fatiha"
-    },
-    {
-      surah: 2,
-      ayah: 255,
-      text: "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ",
-      translation: "Allah - there is no deity except Him, the Ever-Living, the Sustainer of existence. Neither drowsiness overtakes Him nor sleep.",
-      confidence: 0.92,
-      surahName: "Al-Baqarah"
-    },
-    {
-      surah: 112,
-      ayah: 1,
-      text: "قُلْ هُوَ اللَّهُ أَحَدٌ",
-      translation: "Say, He is Allah, [who is] One,",
-      confidence: 0.89,
-      surahName: "Al-Ikhlas"
-    },
-    {
-      surah: 36,
-      ayah: 1,
-      text: "يس",
-      translation: "Ya, Sin.",
-      confidence: 0.87,
-      surahName: "Ya-Sin"
-    },
-    {
-      surah: 55,
-      ayah: 13,
-      text: "فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ",
-      translation: "So which of the favors of your Lord would you deny?",
-      confidence: 0.91,
-      surahName: "Ar-Rahman"
+  try {
+    // Step 1: Convert base64 to blob for speech-to-text
+    const base64Data = audioData.split(',')[1];
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
     }
-  ];
-
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-  
-  // Return a random verse for demonstration
-  const randomVerse = sampleVerses[Math.floor(Math.random() * sampleVerses.length)];
-  
-  // Add some randomness to confidence
-  randomVerse.confidence = Math.max(0.75, randomVerse.confidence - Math.random() * 0.15);
-  
-  return randomVerse;
+    const audioBlob = new Blob([bytes], { type: mimeType });
+    
+    console.log('🔄 Converting audio for speech-to-text...');
+    
+    // Step 2: Send to speech-to-text API
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    
+    const speechResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/speech-to-text`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!speechResponse.ok) {
+      throw new Error('Speech-to-text failed');
+    }
+    
+    const speechData = await speechResponse.json();
+    console.log('🎯 Speech-to-text results:');
+    console.log('📝 Transcription:', speechData.transcription);
+    console.log('🔍 Confidence:', speechData.confidence);
+    console.log('🌍 Language:', speechData.language);
+    
+    if (!speechData.transcription) {
+      throw new Error('No speech detected in audio');
+    }
+    
+    // Step 3: Search Quran using the transcribed text
+    console.log('🔍 Searching Quran with transcribed text...');
+    const searchResults = await smartQuranSearch(speechData.transcription);
+    
+    console.log('📊 Quran search results:');
+    console.log('📝 Total matches:', searchResults.total_matches);
+    console.log('🎯 Search query:', searchResults.query);
+    console.log('🔍 Search field:', searchResults.search_field);
+    
+    if (searchResults.total_matches === 0) {
+      console.log('❌ No Quran matches found for transcription');
+      return {
+        surah: 0,
+        ayah: 0,
+        text: speechData.transcription,
+        translation: 'No matching verse found',
+        confidence: speechData.confidence * 0.5, // Lower confidence for no match
+        surahName: 'Not Found',
+        transcription: speechData.transcription,
+        searchResults: []
+      };
+    }
+    
+    // Step 4: Return the best match
+    const bestMatch = searchResults.results[0];
+    console.log('🏆 Best match found:');
+    console.log('📖 Surah:', bestMatch.surah_name, '(Surah', bestMatch.surah_number + ')');
+    console.log('📝 Ayah:', bestMatch.verse_number);
+    console.log('🔤 Arabic text:', bestMatch.arabic_text);
+    console.log('🌍 Translation:', bestMatch.translation);
+    console.log('📊 Relevance score:', bestMatch.relevance_score);
+    
+    return {
+      surah: bestMatch.surah_number,
+      ayah: bestMatch.verse_number,
+      text: bestMatch.arabic_text,
+      translation: bestMatch.translation,
+      transliteration: bestMatch.transliteration,
+      confidence: Math.min(0.95, speechData.confidence * 0.9), // Combine speech and search confidence
+      surahName: bestMatch.surah_name,
+      surahNameArabic: bestMatch.surah_name_arabic,
+      transcription: speechData.transcription,
+      searchResults: searchResults.results,
+      totalMatches: searchResults.total_matches,
+      relevanceScore: bestMatch.relevance_score
+    };
+    
+  } catch (error) {
+    console.error('❌ Real audio analysis failed:', error);
+    // No dummy fallback — propagate error to caller
+    throw error;
+  }
 }
 
 // Enhanced verse identification with actual Quran API integration
 async function enhanceVerseDetails(verse: any) {
   try {
+    console.log('🔍 Enhancing verse details for Surah', verse.surah);
+    
     // Get additional details from Quran API
+    const { getSurah } = await import('@/lib/quranSearchApi');
     const surahDetails = await getSurah(verse.surah);
+    
+    console.log('📊 Surah details retrieved:', {
+      totalVerses: surahDetails.length,
+      firstVerse: surahDetails[0]?.arabic_text?.substring(0, 50) + '...'
+    });
     
     return {
       ...verse,
-      surahName: surahDetails.name || verse.surahName,
-      surahEnglishName: surahDetails.englishName,
-      totalAyahs: surahDetails.numberOfAyahs,
-      revelationType: surahDetails.revelationType || 'Unknown'
+      totalAyahs: surahDetails.length,
+      revelationType: 'Unknown', // Will be enhanced later
+      enhanced: true
     };
   } catch (error) {
-    console.error('Error enhancing verse details:', error);
-    return verse;
+    console.error('❌ Error enhancing verse details:', error);
+    return {
+      ...verse,
+      enhanced: false,
+      enhancementError: error.message
+    };
   }
 }
 
@@ -103,23 +145,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Processing audio for verse identification...');
-    console.log('Audio size:', audioData.length);
-    console.log('MIME type:', mimeType);
+    console.log('🎵 Processing audio for REAL verse identification...');
+    console.log('📊 Audio size:', (audioData.length / 1024).toFixed(2), 'KB');
+    console.log('🎧 MIME type:', mimeType);
+    console.log('🔍 Audio data preview:', audioData.substring(0, 100) + '...');
 
-    // Identify the verse from audio
-    const identifiedVerse = await identifyVerseFromAudio(audioData);
+    // Identify the verse from audio using REAL speech-to-text and Quran search
+    const identifiedVerse = await identifyVerseFromAudio(audioData, mimeType);
+    
+    console.log('🎯 Raw identification result:', identifiedVerse);
+    console.log('📝 Transcription:', identifiedVerse.transcription);
+    console.log('🔍 Confidence:', identifiedVerse.confidence);
+    console.log('📖 Surah:', identifiedVerse.surahName, 'Ayah:', identifiedVerse.ayah);
     
     // Enhance with additional details from Quran API
     const enhancedVerse = await enhanceVerseDetails(identifiedVerse);
 
-    console.log('Identify Verse API Response - POST:', enhancedVerse);
+    console.log('✅ Final enhanced verse:', enhancedVerse);
+    console.log('📊 Data structure returned:');
+    console.log('  - surah:', enhancedVerse.surah);
+    console.log('  - ayah:', enhancedVerse.ayah);
+    console.log('  - text:', enhancedVerse.text);
+    console.log('  - translation:', enhancedVerse.translation);
+    console.log('  - confidence:', enhancedVerse.confidence);
+    console.log('  - transcription:', enhancedVerse.transcription);
+    console.log('  - totalMatches:', enhancedVerse.totalMatches);
+    console.log('  - searchResults:', enhancedVerse.searchResults?.length || 0, 'results');
+    
     return NextResponse.json(enhancedVerse);
 
   } catch (error) {
-    console.error('Error in verse identification:', error);
+    console.error('❌ Error in verse identification:', error);
     return NextResponse.json(
-      { error: 'Failed to process audio' },
+      { error: 'Failed to process audio', details: error.message },
       { status: 500 }
     );
   }

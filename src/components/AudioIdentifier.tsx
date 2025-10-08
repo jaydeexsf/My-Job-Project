@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
+import { smartQuranSearch } from "@/lib/quranSearchApi";
 import clsx from "clsx";
 import { 
   MicrophoneIcon, 
@@ -22,6 +24,8 @@ interface IdentificationResult {
   translation: string;
   confidence: number;
   surahName: string;
+  transcription?: string;
+  totalMatches?: number;
 }
 
 export default function AudioIdentifier() {
@@ -40,12 +44,27 @@ export default function AudioIdentifier() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
+  // Browser speech recognition (react-speech-recognition)
+  const {
+    transcript,
+    listening: srListening,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable,
+    resetTranscript
+  } = useSpeechRecognition();
+
   const startRecording = async () => {
     console.log('Button clicked: Start recording');
     try {
       setError(null);
       setResults(null);
       audioChunksRef.current = [];
+      // Start browser STT if supported
+      if (browserSupportsSpeechRecognition && isMicrophoneAvailable) {
+        console.log('🧪 SpeechRecognition supported:', browserSupportsSpeechRecognition, '| Mic available:', isMicrophoneAvailable);
+        resetTranscript();
+        SpeechRecognition.startListening({ language: 'ar-SA', continuous: false, interimResults: true });
+      }
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -85,6 +104,14 @@ export default function AudioIdentifier() {
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
         }
+        // Auto-run analysis if we captured a browser transcript
+        setTimeout(() => {
+          try {
+            if (!isAnalyzing && transcript && transcript.trim().length > 0) {
+              analyzeAudio();
+            }
+          } catch {}
+        }, 0);
       };
       
       mediaRecorder.start();
@@ -115,6 +142,7 @@ export default function AudioIdentifier() {
         clearInterval(timerRef.current);
       }
     }
+    try { SpeechRecognition.stopListening(); } catch {}
   };
 
   const drawWaveform = () => {
@@ -132,22 +160,76 @@ export default function AudioIdentifier() {
     const draw = () => {
       analyser.getByteFrequencyData(dataArray);
       
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      // Clear canvas with fade effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Calculate average volume for overall intensity
+      const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+      const intensity = average / 255;
+      
+      console.log('🎵 Audio Level:', Math.round(intensity * 100) + '%', '| Frequency data:', dataArray.slice(0, 10));
       
       const barWidth = (canvas.width / bufferLength) * 2.5;
       let barHeight;
       let x = 0;
       
+      // Create gradient for visual appeal
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      gradient.addColorStop(0, '#8B5CF6'); // Purple
+      gradient.addColorStop(0.5, '#3B82F6'); // Blue
+      gradient.addColorStop(1, '#10B981'); // Emerald
+      
       for (let i = 0; i < bufferLength; i++) {
-        barHeight = (dataArray[i] / 255) * canvas.height * 0.8;
+        barHeight = (dataArray[i] / 255) * canvas.height * 0.9;
         
-        const hue = (i / bufferLength) * 360;
-        ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
-        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+        // Make bars more responsive to audio
+        const normalizedHeight = Math.max(2, barHeight);
+        
+        // Color based on frequency and intensity
+        const frequencyRatio = i / bufferLength;
+        const volumeRatio = dataArray[i] / 255;
+        
+        if (volumeRatio > 0.1) {
+          // High volume - bright colors
+          const hue = 200 + (frequencyRatio * 160); // Blue to green
+          const saturation = 70 + (volumeRatio * 30);
+          const lightness = 40 + (volumeRatio * 40);
+          ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        } else {
+          // Low volume - dim colors
+          ctx.fillStyle = `rgba(139, 92, 246, ${volumeRatio * 0.3})`;
+        }
+        
+        // Add glow effect for high frequencies
+        if (volumeRatio > 0.5) {
+          ctx.shadowColor = `hsl(${200 + frequencyRatio * 160}, 70%, 50%)`;
+          ctx.shadowBlur = 5;
+        } else {
+          ctx.shadowBlur = 0;
+        }
+        
+        // Draw bar with rounded corners
+        const barX = x;
+        const barY = canvas.height - normalizedHeight;
+        const barW = barWidth;
+        const barH = normalizedHeight;
+        
+        ctx.fillRect(barX, barY, barW, barH);
         
         x += barWidth + 1;
       }
+      
+      // Reset shadow
+      ctx.shadowBlur = 0;
+      
+      // Add center line for visual reference
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
       
       animationRef.current = requestAnimationFrame(draw);
     };
@@ -156,17 +238,61 @@ export default function AudioIdentifier() {
   };
 
   const analyzeAudio = async () => {
-    console.log('Button clicked: Analyze audio');
-    if (!audioBlob) return;
-    
+    console.log('🎤 Button clicked: Analyze audio');
     setIsAnalyzing(true);
     setError(null);
     
     try {
+      // Prefer client transcript from Web Speech API (no server creds required)
+      if (transcript && transcript.trim().length > 0) {
+        const spoken = transcript.trim();
+        console.log('🗣️ Transcription (from audio):', spoken);
+        console.log('🔎 Searching Quran using client transcription...');
+        const searchResults = await smartQuranSearch(spoken);
+        console.log('📦 Full Quran search response:', searchResults);
+
+        if (searchResults.total_matches > 0) {
+          const best = searchResults.results[0];
+          const built: IdentificationResult = {
+            surah: best.surah_number,
+            ayah: best.verse_number,
+            text: best.arabic_text,
+            translation: best.translation,
+            confidence: 0.9,
+            surahName: best.surah_name,
+            transcription: spoken,
+            totalMatches: searchResults.total_matches
+          };
+          console.log('🎯 Best match (client):', built);
+          setResults(built);
+          return;
+        } else {
+          setError('No matching verse found for the spoken text.');
+          return;
+        }
+      } else {
+        console.warn('⚠️ No browser transcript captured yet. Skipping server STT to avoid 500.');
+        setError('No speech captured. Please record again and wait until the “You said” text appears, then press Identify.');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (!audioBlob) {
+        setError('No audio or transcription available. Please record again.');
+        setIsAnalyzing(false);
+        return;
+      }
+
       // Convert audio to base64 for sending to API
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Audio = reader.result as string;
+        
+        console.log('📊 Audio Analysis Details:');
+        console.log('  - Audio size:', (audioBlob.size / 1024).toFixed(2), 'KB');
+        console.log('  - Audio type:', audioBlob.type);
+        console.log('  - Base64 length:', base64Audio.length);
+        console.log('  - Recording duration:', formatTime(recordingTime));
         
         // Send to our API endpoint for processing
         const response = await fetch('/api/identify-verse', {
@@ -185,7 +311,12 @@ export default function AudioIdentifier() {
         }
         
         const result = await response.json();
-        console.log('Audio identification API response:', result);
+        console.log('🎯 Audio identification API response:', result);
+        console.log('🗣️ Transcription (from audio):', result.transcription);
+        console.log('📝 Identified Text:', result.text);
+        console.log('🔍 Confidence Score:', result.confidence);
+        console.log('📖 Surah:', result.surahName, '- Ayah:', result.ayah);
+        console.log('🌍 Translation:', result.translation);
         setResults(result);
       };
       
@@ -193,7 +324,7 @@ export default function AudioIdentifier() {
       
     } catch (err) {
       setError("Failed to analyze audio. Please try again.");
-      console.error("Analysis error:", err);
+      console.error("❌ Analysis error:", err);
     } finally {
       setIsAnalyzing(false);
     }
@@ -332,6 +463,14 @@ export default function AudioIdentifier() {
             </button>
           </div>
         )}
+        {/* Live transcript preview */}
+        {transcript && transcript.trim().length > 0 && (
+          <div className="mt-4 p-3 bg-white/10 dark:bg-gray-800/30 rounded-lg">
+            <p className="text-sm opacity-80">
+              <strong>You said:</strong> &ldquo;{transcript}&rdquo;
+            </p>
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
@@ -357,6 +496,36 @@ export default function AudioIdentifier() {
                 {Math.round(results.confidence * 100)}% confidence
               </div>
             </div>
+            
+            {/* Transcription Display */}
+            {results.transcription && (
+              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                    What you said:
+                  </span>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 italic">
+                  "{results.transcription}"
+                </p>
+              </div>
+            )}
+            
+            {/* Search Results Summary */}
+            {results.totalMatches && (
+              <div className="mb-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                    Search Results:
+                  </span>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300">
+                  Found {results.totalMatches} matches in the Quran
+                </p>
+              </div>
+            )}
             
             <div className="space-y-4">
               <div>
@@ -398,6 +567,15 @@ export default function AudioIdentifier() {
           </div>
         )}
       </div>
+      {/* Full-screen analyzing overlay */}
+      {isAnalyzing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl">
+            <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <div className="text-sm text-gray-700 dark:text-gray-200">Identifying verse...</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

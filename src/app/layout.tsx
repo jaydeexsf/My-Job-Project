@@ -9,12 +9,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "QuranVoice - AI-Powered Quran Learning Platform",
-  description: "Advanced voice search, recitation analysis, and personalized Quran learning with AI technology. Perfect your recitation with real-time feedback.",
-  keywords: ["Quran", "voice search", "recitation", "Islamic", "AI", "learning", "Arabic"],
+  title: "QuranVoice - Interactive Quran Learning Platform",
+  description: "Advanced voice search, recitation analysis, and personalized Quran learning. Perfect your recitation with real-time feedback.",
+  keywords: ["Quran", "voice search", "recitation", "Islamic", "learning", "Arabic"],
   authors: [{ name: "QuranVoice Team" }],
   openGraph: {
-    title: "QuranVoice - AI-Powered Quran Learning",
+    title: "QuranVoice - Interactive Quran Learning",
     description: "Advanced voice search and recitation analysis for Quran learning",
     type: "website",
   },

@@ -13,8 +13,8 @@ import {
 } from "@heroicons/react/24/outline";
 
 export const metadata = {
-  title: "Identify Quran Verse | AI-Powered Quran Learning",
-  description: "Upload or record Quran recitation to identify verses using AI",
+  title: "Identify Quran Verse | Interactive Quran Learning",
+  description: "Upload or record Quran recitation to identify verses",
 };
 
 export default function IdentifyPage() {
@@ -42,7 +42,7 @@ export default function IdentifyPage() {
           </h1>
         </div>
         <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
-          Just like Shazam identifies songs, our AI can identify Quran verses from audio.
+          Just like Shazam identifies songs, we can identify Quran verses from audio.
           Record yourself reciting, upload an audio file, or let it listen to any Quran recitation.
         </p>
       </div>
@@ -69,7 +69,7 @@ export default function IdentifyPage() {
             </div>
             <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Analyze</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              AI analyzes the audio to identify the specific verse
+              Audio is analyzed to identify the specific verse
             </p>
           </div>
           <div className="text-center p-6 bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm">
@@ -103,7 +103,7 @@ export default function IdentifyPage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">High Accuracy</h3>
             </div>
             <p className="text-gray-600 dark:text-gray-300">
-              Advanced AI algorithms provide highly accurate verse identification from audio recordings.
+              Advanced algorithms provide highly accurate verse identification from audio recordings.
             </p>
           </div>
           
@@ -152,7 +152,7 @@ export default function IdentifyPage() {
             Try Other Features
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            Explore more ways to interact with the Quran using AI
+            Explore more ways to interact with the Quran
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link 
