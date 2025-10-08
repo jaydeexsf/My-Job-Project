@@ -22,8 +22,6 @@ export default function SurahPage() {
     const [loading, setLoading] = useState(true);
     const [activeAyah, setActiveAyah] = useState<number | null>(null);
     const [tab, setTab] = useState<'memorize' | 'flashcard' | 'quiz'>('memorize');
-    const [repeatFrom, setRepeatFrom] = useState<number>(1);
-    const [repeatTo, setRepeatTo] = useState<number>(1);
     const [repeatCount, setRepeatCount] = useState<number>(3);
     const repeatCounterRef = useRef<number>(0);
     const loopsDoneRef = useRef<number>(0);
@@ -38,7 +36,6 @@ export default function SurahPage() {
     const [showTransliteration, setShowTransliteration] = useState<boolean>(true);
     const [showTranslation, setShowTranslation] = useState<boolean>(true);
     const [beginnerMode, setBeginnerMode] = useState<boolean>(true);
-    const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
     const [verseStatus, setVerseStatus] = useState<Record<number, MemorizationStatus>>({});
     const [dailyGoal] = useState<number>(1);
     const [versesMemorizedToday, setVersesMemorizedToday] = useState<number>(0);
@@ -62,6 +59,7 @@ export default function SurahPage() {
     const [segments, setSegments] = useState<{ ayah: number; start: number; end: number }[]>([]);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
+    const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const hasScrolledOnce = useRef<boolean>(false);
     const segmentByAyah = useMemo(() => {
@@ -156,10 +154,10 @@ export default function SurahPage() {
             const sampleRate = audioBuffer.sampleRate;
             const duration = audioBuffer.duration;
 
-            // Detect silence periods
-            const silenceThreshold = 0.02; // Amplitude threshold for silence
-            const minSilenceDuration = 0.3; // Minimum 300ms silence between verses
-            const windowSize = Math.floor(sampleRate * 0.1); // 100ms window
+            // Detect silence periods (tuned to avoid early cuts)
+            const silenceThreshold = 0.015; // require quieter audio to consider it silent
+            const minSilenceDuration = 0.5; // require at least 500ms of silence between verses
+            const windowSize = Math.floor(sampleRate * 0.12); // 120ms window
 
             const silencePeriods: { start: number; end: number }[] = [];
             let silenceStart: number | null = null;
@@ -208,16 +206,18 @@ export default function SurahPage() {
             const generatedSegments: { ayah: number; start: number; end: number }[] = [];
             let currentStart = 0;
 
+            const postPausePadding = 0.12; // keep highlight a bit into the pause
             for (let i = 0; i < Math.min(silencePeriods.length, verseCount - 1); i++) {
                 // Use the END of silence as the verse boundary (not the middle)
                 // This way the verse stays highlighted during the pause
                 const silenceEnd = silencePeriods[i].end;
+                const boundary = Math.min(duration, silenceEnd + postPausePadding);
                 generatedSegments.push({
                     ayah: i + 1,
                     start: currentStart,
-                    end: silenceEnd
+                    end: boundary
                 });
-                currentStart = silenceEnd;
+                currentStart = boundary;
             }
 
             // Add last verse
@@ -247,8 +247,12 @@ export default function SurahPage() {
             
             console.log('[Audio Analysis] ═══════════════════════════════════════');
             
-            // Save to localStorage for future use
-            localStorage.setItem(`audio-segments-${surahId}`, JSON.stringify(generatedSegments));
+            // Save to localStorage for future use with version to force re-analysis when algorithm improves
+            const cacheVersion = 'v2'; // bump when silence detection changes
+            localStorage.setItem(`audio-segments-${surahId}`, JSON.stringify({
+                version: cacheVersion,
+                segments: generatedSegments
+            }));
             
             setSegments(generatedSegments);
             setIsAnalyzingAudio(false);
@@ -288,13 +292,18 @@ export default function SurahPage() {
                     setSegments(tData.segments);
                     console.log('[SurahPage] Using API segments:', tData.segments.length);
                 } else {
-                    // Try to load cached segments from localStorage
+                    // Try to load cached segments from localStorage (check version)
                     const cachedSegments = localStorage.getItem(`audio-segments-${surahId}`);
                     if (cachedSegments) {
                         try {
                             const parsed = JSON.parse(cachedSegments);
-                            setSegments(parsed);
-                            console.log('[SurahPage] Using cached segments:', parsed.length);
+                            const currentVersion = 'v2'; // same as above
+                            if (parsed.version === currentVersion && Array.isArray(parsed.segments)) {
+                                setSegments(parsed.segments);
+                                console.log('[SurahPage] Using cached segments:', parsed.segments.length);
+                            } else {
+                                console.log('[SurahPage] Cached segments outdated, will re-analyze');
+                            }
                         } catch {}
                     }
                 }
@@ -358,20 +367,23 @@ export default function SurahPage() {
         if (!audioUrl) return;
         const audio = audioRef.current;
         if (!audio) return;
-        const segFrom = segmentByAyah[repeatFrom];
-        const shouldUseTime = (useTimeRange || (timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec));
-        const seekTo = shouldUseTime && timeStartSec != null
-            ? Math.max(0, timeStartSec) + 0.01
-            : (segFrom ? segFrom.start + 0.01 : 0);
-        console.log(`[Play] Starting from verse ${repeatFrom} at ${formatTime(seekTo)}`);
-        audio.currentTime = seekTo;
-        repeatCounterRef.current = 0;
-        loopsDoneRef.current = 0;
-        lastLoopAtMsRef.current = 0;
-        audio.play().then(() => { setIsPlaying(true); }).catch((err) => console.error('Play failed:', err));
-        if (segments.length) {
-            console.log(`[Play] Setting active verse to ${repeatFrom}`);
-            setActiveAyah(repeatFrom);
+        
+        if (useTimeRange && timeStartSec != null) {
+            const seekTo = Math.max(0, timeStartSec) + 0.01;
+            console.log(`[Play] Starting time-based repeat from ${formatTime(seekTo)}`);
+            audio.currentTime = seekTo;
+            audio.play().then(() => { setIsPlaying(true); }).catch((err) => console.error('Play failed:', err));
+            repeatCounterRef.current = 0;
+            loopsDoneRef.current = 0;
+            lastLoopAtMsRef.current = 0;
+        } else {
+            // Default behavior: start from beginning
+            console.log(`[Play] Starting from beginning`);
+            audio.currentTime = 0;
+            audio.play().then(() => { setIsPlaying(true); }).catch((err) => console.error('Play failed:', err));
+            repeatCounterRef.current = 0;
+            loopsDoneRef.current = 0;
+            lastLoopAtMsRef.current = 0;
         }
     };
 
@@ -476,7 +488,7 @@ export default function SurahPage() {
             audio.removeEventListener('loadedmetadata', onLoaded);
             audio.removeEventListener('durationchange', onLoaded);
         };
-    }, [audioUrl, segments, repeatFrom, repeatTo, repeatCount, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, playbackSpeed]);
+    }, [audioUrl, segments, repeatCount, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, playbackSpeed]);
 
     // Pause when page loses visibility and cleanup on unmount
     useEffect(() => {
@@ -495,9 +507,10 @@ export default function SurahPage() {
         };
     }, []);
 
-    // Auto-scroll the active ayah into view smoothly
+    // Auto-scroll the active ayah into view smoothly (toggleable)
     useEffect(() => {
         if (activeAyah == null) return;
+        if (!autoScrollEnabled) return;
         
         // Don't scroll on initial load (first verse)
         if (!hasScrolledOnce.current && activeAyah === 1) {
@@ -527,7 +540,7 @@ export default function SurahPage() {
         }, 100);
 
         return () => clearTimeout(scrollTimeout);
-    }, [activeAyah]);
+    }, [activeAyah, autoScrollEnabled]);
 
     // Next/Previous verse navigation
     const goToNextVerse = () => {
@@ -669,6 +682,21 @@ export default function SurahPage() {
                     </div>
                 </div>
             )}
+
+            {/* Auto-scroll Toggle (sticky) */}
+            <div className="fixed bottom-4 right-4 z-20">
+                <button
+                    onClick={() => setAutoScrollEnabled(v => !v)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium shadow-md border transition-colors ${
+                        autoScrollEnabled
+                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                    title="Toggle auto-scroll"
+                >
+                    {autoScrollEnabled ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
+                </button>
+            </div>
             
             {!audioUrl && !loading && (
                 <div className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -794,8 +822,9 @@ export default function SurahPage() {
                                     <button
                                         onClick={() => { 
                                             setRepeatCount(3);
-                                            setRepeatFrom(activeAyah || 1);
-                                            setRepeatTo(activeAyah || 1);
+                                            setUseTimeRange(true);
+                                            setTimeStart("0:00");
+                                            setTimeEnd("");
                                             setTimeout(() => playFromRange(), 50);
                                         }}
                                         className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105"
@@ -823,59 +852,9 @@ export default function SurahPage() {
                         {/* Advanced Controls */}
                         {!beginnerMode && (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">From Verse</label>
-                                        <input 
-                                            type="number" 
-                                            min={1} 
-                                            max={verses.length}
-                                            value={repeatFrom} 
-                                            onChange={e => setRepeatFrom(Number(e.target.value))} 
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">To Verse</label>
-                                        <input 
-                                            type="number" 
-                                            min={1} 
-                                            max={verses.length}
-                                            value={repeatTo} 
-                                            onChange={e => setRepeatTo(Number(e.target.value))} 
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Repeat</label>
-                                        <input 
-                                            type="number" 
-                                            min={1} 
-                                            max={10}
-                                            value={repeatCount} 
-                                            onChange={e => setRepeatCount(Number(e.target.value))} 
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                                        />
-                                    </div>
-                                    <div className="flex items-end">
-                                        <button
-                                            onClick={playFromRange}
-                                            className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Restart
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setShowAdvanced(!showAdvanced)}
-                                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
-                                >
-                                    {showAdvanced ? '▼ Hide' : '▶ Show'} Time-based Controls
-                                </button>
-
-                                {showAdvanced && (
-                                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-3">
+                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Time-based Repeat</h3>
                                         <label className="flex items-center gap-2">
                                             <input 
                                                 type="checkbox" 
@@ -883,30 +862,85 @@ export default function SurahPage() {
                                                 onChange={e => setUseTimeRange(e.target.checked)}
                                                 className="w-4 h-4 text-emerald-600 rounded"
                                             />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Use time range (mm:ss)</span>
+                                            <span className="text-xs text-gray-600 dark:text-gray-400">Enable</span>
                                         </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
-                                                <input 
-                                                    value={timeStart} 
-                                                    onChange={e => setTimeStart(e.target.value)} 
-                                                    placeholder="0:00" 
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">End Time</label>
-                                                <input 
-                                                    value={timeEnd} 
-                                                    onChange={e => setTimeEnd(e.target.value)} 
-                                                    placeholder="0:30" 
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                />
-                                            </div>
-                                        </div>
                                     </div>
-                                )}
+                                    
+                                    {useTimeRange && (
+                                        <div className="space-y-3">
+                                            {/* Current Time Display */}
+                                            <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Time:</span>
+                                                <span className="text-lg font-mono text-emerald-600 dark:text-emerald-400">
+                                                    {Math.floor(currentTimeSec / 60)}:{(currentTimeSec % 60).toFixed(1).padStart(4, '0')}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
+                                                    <input 
+                                                        value={timeStart} 
+                                                        onChange={e => setTimeStart(e.target.value)} 
+                                                        placeholder="0:00" 
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">End Time</label>
+                                                    <input 
+                                                        value={timeEnd} 
+                                                        onChange={e => setTimeEnd(e.target.value)} 
+                                                        placeholder="0:30" 
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const currentMin = Math.floor(currentTimeSec / 60);
+                                                        const currentSec = (currentTimeSec % 60).toFixed(1);
+                                                        setTimeStart(`${currentMin}:${currentSec.padStart(4, '0')}`);
+                                                    }}
+                                                    className="flex-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                                                >
+                                                    Set Current
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const durationMin = Math.floor(durationSec / 60);
+                                                        const durationSecFormatted = (durationSec % 60).toFixed(1);
+                                                        setTimeEnd(`${durationMin}:${durationSecFormatted.padStart(4, '0')}`);
+                                                    }}
+                                                    className="flex-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                                                >
+                                                    Set End
+                                                </button>
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Repeat Count</label>
+                                                <input 
+                                                    type="number" 
+                                                    min={1} 
+                                                    max={10}
+                                                    value={repeatCount} 
+                                                    onChange={e => setRepeatCount(Number(e.target.value))} 
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500"
+                                                />
+                                            </div>
+                                            
+                                            <button
+                                                onClick={playFromRange}
+                                                className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
+                                            >
+                                                Start Time-based Repeat
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

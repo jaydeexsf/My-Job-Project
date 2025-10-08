@@ -31,6 +31,8 @@ export default function Home() {
   const [externalQuery, setExternalQuery] = useState<string>("");
   const [externalResults, setExternalResults] = useState<any[]>([]);
   const [externalTotal, setExternalTotal] = useState<number>(0);
+  const [externalPage, setExternalPage] = useState<number>(1);
+  const [externalHasMore, setExternalHasMore] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [playingChapter, setPlayingChapter] = useState<number | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
@@ -180,6 +182,8 @@ export default function Home() {
       setExternalResults([]);
       setExternalTotal(0);
       setExternalLoading(false);
+      setExternalPage(1);
+      setExternalHasMore(false);
       return;
     }
     // Try fuzzy match across chapter id, english name, translation name
@@ -202,33 +206,62 @@ export default function Home() {
     const finalLocal = scored.length ? scored : fallback;
     setChapters(finalLocal);
 
-    // If no chapters matched OR too many matched (>5), also fetch external verse results via server proxy
-    if (finalLocal.length === 0 || finalLocal.length > 5) {
-      setExternalLoading(true);
-      setExternalQuery(query);
-      setExternalResults([]);
-      setExternalTotal(0);
-      fetch(`/api/furqan-search?q=${encodeURIComponent(query)}`)
-        .then(r => r.json())
-        .then(j => {
-          if (j && Array.isArray(j.results)) {
-            setExternalResults(j.results);
-            setExternalTotal(Number(j.total_matches) || j.results.length);
-          } else {
-            setExternalResults([]);
-            setExternalTotal(0);
-          }
-        })
-        .catch(() => {
+    // Always fetch external verse results via server proxy on search
+    setExternalLoading(true);
+    setExternalQuery(query);
+    setExternalResults([]);
+    setExternalTotal(0);
+    setExternalPage(1);
+    setExternalHasMore(false);
+    fetch(`/api/furqan-search?q=${encodeURIComponent(query)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j && Array.isArray(j.results)) {
+          const pageSize = 10; // Show 10 verses per page
+          const totalResults = j.results;
+          const paginatedResults = totalResults.slice(0, pageSize);
+          
+          setExternalResults(paginatedResults);
+          setExternalTotal(Number(j.total_matches) || totalResults.length);
+          setExternalHasMore(totalResults.length > pageSize);
+        } else {
           setExternalResults([]);
           setExternalTotal(0);
-        })
-        .finally(() => setExternalLoading(false));
-    } else {
-      setExternalResults([]);
-      setExternalTotal(0);
-      setExternalLoading(false);
-    }
+          setExternalHasMore(false);
+        }
+      })
+      .catch(() => {
+        setExternalResults([]);
+        setExternalTotal(0);
+        setExternalHasMore(false);
+      })
+      .finally(() => setExternalLoading(false));
+  };
+
+  const loadMoreVerses = () => {
+    if (!externalQuery || externalLoading) return;
+    
+    setExternalLoading(true);
+    const nextPage = externalPage + 1;
+    const pageSize = 10;
+    
+    fetch(`/api/furqan-search?q=${encodeURIComponent(externalQuery)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j && Array.isArray(j.results)) {
+          const startIndex = 0; // Get all results and slice client-side
+          const endIndex = nextPage * pageSize;
+          const newResults = j.results.slice(startIndex, endIndex);
+          
+          setExternalResults(newResults);
+          setExternalPage(nextPage);
+          setExternalHasMore(j.results.length > endIndex);
+        }
+      })
+      .catch(() => {
+        // Keep existing results on error
+      })
+      .finally(() => setExternalLoading(false));
   };
 
   return (
@@ -440,34 +473,48 @@ export default function Home() {
               )}
             </div>
 
-            {externalLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="p-4 sm:p-5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse">
-                    <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-3" />
-                    <div className="h-6 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2" />
-                    <div className="h-4 w-5/6 bg-gray-200 dark:bg-gray-700 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {externalResults.map((r: any, idx: number) => (
-                  <Link key={idx} href={`/surah/${r.surah_number}`} className="block p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
-                        {r.surah_name} <span className="text-gray-500 dark:text-gray-400">({r.surah_number}:{r.verse_number})</span>
-                      </div>
-                      <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Verse match</span>
-                    </div>
-                    <div className="text-right text-lg leading-loose mb-1" dir="rtl">{r.arabic_text}</div>
-                    <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                      {highlightText(String(r.translation || ''), externalQuery)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+             {externalLoading && externalResults.length === 0 ? (
+               <div className="space-y-3">
+                 {Array.from({ length: 4 }).map((_, i) => (
+                   <div key={i} className="p-4 sm:p-5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse">
+                     <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-3" />
+                     <div className="h-6 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+                     <div className="h-4 w-5/6 bg-gray-200 dark:bg-gray-700 rounded" />
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div>
+                 <div className="space-y-3">
+                   {externalResults.map((r: any, idx: number) => (
+                     <Link key={idx} href={`/surah/${r.surah_number}`} className="block p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
+                       <div className="flex items-center justify-between mb-1.5">
+                         <div className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                           {r.surah_name} <span className="text-gray-500 dark:text-gray-400">({r.surah_number}:{r.verse_number})</span>
+                         </div>
+                         <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Verse match</span>
+                       </div>
+                       <div className="text-right text-lg leading-loose mb-1" dir="rtl">{r.arabic_text}</div>
+                       <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                         {highlightText(String(r.translation || ''), externalQuery)}
+                       </div>
+                     </Link>
+                   ))}
+                 </div>
+                 
+                 {externalHasMore && (
+                   <div className="mt-6 text-center">
+                     <button
+                       onClick={loadMoreVerses}
+                       disabled={externalLoading}
+                       className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg font-medium text-sm sm:text-base transition-colors"
+                     >
+                       {externalLoading ? 'Loading more...' : 'Load More Verses'}
+                     </button>
+                   </div>
+                 )}
+               </div>
+             )}
           </div>
         </section>
       )}
