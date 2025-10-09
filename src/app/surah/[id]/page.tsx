@@ -54,6 +54,10 @@ export default function SurahPage() {
     const [timeStart, setTimeStart] = useState<string>("0:00");
     const [timeEnd, setTimeEnd] = useState<string>("");
 
+    // Ayah-based repeat range (defaults handled in logic if unset)
+    const [repeatFrom, setRepeatFrom] = useState<number | null>(null);
+    const [repeatTo, setRepeatTo] = useState<number | null>(null);
+
     // DOM <audio> element used for playback, seeking, and time reads
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [segments, setSegments] = useState<{ ayah: number; start: number; end: number }[]>([]);
@@ -62,11 +66,43 @@ export default function SurahPage() {
     const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const hasScrolledOnce = useRef<boolean>(false);
+    const lastLoggedSecondRef = useRef<number>(-1);
+    const lastAnnouncedAyahRef = useRef<number | null>(null);
     const segmentByAyah = useMemo(() => {
         const map: Record<number, { start: number; end: number }> = {};
         for (const s of segments) map[s.ayah] = { start: s.start, end: s.end };
         return map;
     }, [segments]);
+    const firstSegmentStart = useMemo(() => segments.length > 0 ? segments[0].start : 0, [segments]);
+
+    // Heuristic per-verse timing estimation based on Arabic text length (used before real analysis is available)
+    const estimatedSegments = useMemo(() => {
+        if (segments.length > 0 || verses.length === 0) return [] as { ayah: number; start: number; end: number }[];
+        const initialSilence = 0.82; // seconds to allow intro gap
+        const baseSecondsPerVerse = 0.6; // base time for any verse
+        const secondsPerChar = 0.06; // time per Arabic character
+        const secondsPerWord = 0.12; // time per word (pauses)
+        let cursor = initialSilence;
+        const est: { ayah: number; start: number; end: number }[] = [];
+        for (const v of verses) {
+            const text = (v.arabic || '').trim();
+            const charCount = text.length;
+            const wordCount = text.split(/\s+/).filter(Boolean).length;
+            const dur = baseSecondsPerVerse + (charCount * secondsPerChar) + (wordCount * secondsPerWord);
+            const start = cursor;
+            const end = start + dur;
+            est.push({ ayah: v.ayah, start, end });
+            cursor = end + 0.3; // brief pause between verses
+        }
+        try {
+            console.log('[Estimated Segments From Text] using heuristics', { initialSilence, baseSecondsPerVerse, secondsPerChar, secondsPerWord });
+            est.forEach(s => {
+                const dur = (s.end - s.start).toFixed(2);
+                console.log(`[Est Verse ${s.ayah}] ${formatTime(s.start)} → ${formatTime(s.end)} (${dur}s)`);
+            });
+        } catch {}
+        return est;
+    }, [segments, verses]);
 
     // Load memorization progress from localStorage
     useEffect(() => {
@@ -247,6 +283,23 @@ export default function SurahPage() {
             
             console.log('[Audio Analysis] ═══════════════════════════════════════');
             
+            // Print full raw analysis object (inputs, params, and results)
+            try {
+                console.log('[Audio Analysis Raw]', {
+                    params: {
+                        silenceThreshold,
+                        minSilenceDuration,
+                        windowSize,
+                    },
+                    audio: {
+                        sampleRate,
+                        duration,
+                    },
+                    silencePeriods,
+                    generatedSegments,
+                });
+            } catch {}
+            
             // Save to localStorage for future use with version to force re-analysis when algorithm improves
             const cacheVersion = 'v2'; // bump when silence detection changes
             localStorage.setItem(`audio-segments-${surahId}`, JSON.stringify({
@@ -283,12 +336,36 @@ export default function SurahPage() {
                 
                 const tRes = await fetch(`/api/timings?surah=${surahId}&reciter=1`);
                 const tData = await tRes.json();
+                // Print full raw timings response (provider/silence data)
+                try { console.log('[Timings API Raw]', tData); } catch {}
                 let audioUrlToUse = tData?.audioUrl;
                 
                 // Check if we have segments from API
+                const normalizeSegments = (arr: { ayah: number; start: number; end: number }[]) => {
+                    if (!Array.isArray(arr)) return [] as { ayah: number; start: number; end: number }[];
+                    const normalized: { ayah: number; start: number; end: number }[] = [];
+                    let lastEnd = 0;
+                    for (const s of arr) {
+                        const start = Math.max(0, Math.max(s.start ?? 0, lastEnd));
+                        const end = Math.max(start + 0.05, s.end ?? start + 0.05); // enforce minimal 50ms window
+                        normalized.push({ ayah: s.ayah, start, end });
+                        lastEnd = end;
+                    }
+                    return normalized;
+                };
+
                 if (tData?.segments && tData.segments.length > 0) {
-                    setSegments(tData.segments);
+                    const norm = normalizeSegments(tData.segments);
+                    setSegments(norm);
                     console.log('[SurahPage] Using API segments:', tData.segments.length);
+                    // Detailed segments summary
+                    try {
+                        console.log('[Segments Summary] Total segments:', norm.length);
+                        norm.forEach((s: { ayah: number; start: number; end: number }) => {
+                            const dur = (s.end - s.start).toFixed(2);
+                            console.log(`[Verse ${s.ayah}] ${formatTime(s.start)} → ${formatTime(s.end)} (${dur}s)`);
+                        });
+                    } catch {}
                 } else {
                     // Try to load cached segments from localStorage (check version)
                     const cachedSegments = localStorage.getItem(`audio-segments-${surahId}`);
@@ -297,8 +374,17 @@ export default function SurahPage() {
                             const parsed = JSON.parse(cachedSegments);
                             const currentVersion = 'v2'; // same as above
                             if (parsed.version === currentVersion && Array.isArray(parsed.segments)) {
-                                setSegments(parsed.segments);
-                                console.log('[SurahPage] Using cached segments:', parsed.segments.length);
+                                const norm = normalizeSegments(parsed.segments);
+                                setSegments(norm);
+                                console.log('[SurahPage] Using cached segments:', norm.length);
+                                // Detailed segments summary
+                                try {
+                                    console.log('[Segments Summary] Total segments:', norm.length);
+                                    norm.forEach((s: { ayah: number; start: number; end: number }) => {
+                                        const dur = (s.end - s.start).toFixed(2);
+                                        console.log(`[Verse ${s.ayah}] ${formatTime(s.start)} → ${formatTime(s.end)} (${dur}s)`);
+                                    });
+                                } catch {}
                             } else {
                                 console.log('[SurahPage] Cached segments outdated, will re-analyze');
                             }
@@ -404,6 +490,15 @@ export default function SurahPage() {
         }
     };
 
+    const seekBySeconds = (delta: number) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        const total = Number.isFinite(durationSec) && durationSec > 0 ? durationSec : (audio.duration || 0);
+        const target = Math.max(0, Math.min(total, (audio.currentTime || 0) + delta));
+        audio.currentTime = target;
+        console.log(`[Seek] ${delta > 0 ? '+' : ''}${delta}s → ${formatTime(target)} / ${formatTime(total)}`);
+    };
+
     const pausePlayback = () => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -421,13 +516,51 @@ export default function SurahPage() {
         const onTime = () => {
             const t = audio.currentTime;
             setCurrentTimeSec(t);
+
+            // Handle initial window before first segment: lock to verse 1 once so auto-scroll doesn't skip it
+            const firstStart = segments.length > 0 ? segments[0].start : 0;
+            if (t < (firstStart + 0.15) && lastAnnouncedAyahRef.current == null) {
+                if (activeAyah !== 1) {
+                    setActiveAyah(1);
+                }
+                lastAnnouncedAyahRef.current = 1;
+            }
             
-            // find segment containing t
-            if (segments.length > 0) {
-                const seg = segments.find(s => t >= s.start && t <= s.end);
-                if (seg && seg.ayah !== activeAyah) {
-                    console.log(`[Verse Change] ${formatTime(t)} → Verse ${seg.ayah} (was ${activeAyah})`);
+            // find segment containing t (prefer real segments; fall back to estimates)
+            const allSegs = segments.length > 0 ? segments : estimatedSegments;
+            if (allSegs.length > 0) {
+                const seg = allSegs.find(s => t >= s.start && t <= s.end);
+                if (seg && seg.ayah !== activeAyah && seg.ayah !== lastAnnouncedAyahRef.current) {
+                    const verseText = verses.find(v => v.ayah === seg.ayah)?.arabic || '';
+                    const segDur = (seg.end - seg.start).toFixed(2);
+                    console.log(`[Verse Change] ${formatTime(t)} → Verse ${seg.ayah} (was ${activeAyah}) | ${formatTime(seg.start)} → ${formatTime(seg.end)} (${segDur}s)`);
+                    if (verseText) {
+                        console.log(`[Verse ${seg.ayah} Text]`, verseText);
+                    }
                     setActiveAyah(seg.ayah);
+                    lastAnnouncedAyahRef.current = seg.ayah;
+                }
+            }
+
+            // Per-second diagnostic logs for the first 15s, skipping initial silence
+            if (allSegs.length > 0) {
+                const currentSecond = Math.floor(t);
+                const initialSilenceBoundary = Math.max(0, firstSegmentStart) + 0.05;
+                if (t >= initialSilenceBoundary && currentSecond !== lastLoggedSecondRef.current && currentSecond <= 15) {
+                    lastLoggedSecondRef.current = currentSecond;
+                    const seg = allSegs.find(s => t >= s.start && t <= s.end);
+                    if (seg) {
+                        const verseText = verses.find(v => v.ayah === seg.ayah)?.arabic || '';
+                        const segDur = (seg.end - seg.start).toFixed(2);
+                        console.log(`[Diagnostics @ ${formatTime(t)}] Verse ${seg.ayah} | Window ${formatTime(seg.start)} → ${formatTime(seg.end)} (${segDur}s)`);
+                        if (verseText) {
+                            console.log(`[Diagnostics Text]`, verseText);
+                        }
+                        console.log(`[Diagnostics Meta] realSegments=${segments.length}, estimated=${estimatedSegments.length}, playbackRate=${playbackSpeed}x`);
+                    } else {
+                        // Between segments or trailing audio
+                        console.log(`[Diagnostics @ ${formatTime(t)}] Between segments | realSegments=${segments.length}, estimated=${estimatedSegments.length}`);
+                    }
                 }
             }
 
@@ -445,8 +578,11 @@ export default function SurahPage() {
                     audio.currentTime = Math.max(0, timeStartSec) + 0.01;
                 }
             } else if (segments.length > 0) {
-                const endSeg = segmentByAyah[repeatTo];
-                const startSeg = segmentByAyah[repeatFrom];
+                // Fallbacks: repeat current ayah if no explicit range is set
+                const selectedStartAyah = (repeatFrom ?? activeAyah ?? 1);
+                const selectedEndAyah = (repeatTo ?? selectedStartAyah);
+                const endSeg = segmentByAyah[selectedEndAyah];
+                const startSeg = segmentByAyah[selectedStartAyah];
                 if (startSeg && endSeg) {
                     if (t > endSeg.end - 0.05) {
                         const now = Date.now();
@@ -455,7 +591,7 @@ export default function SurahPage() {
                             lastLoopAtMsRef.current = now;
                             const seek = startSeg.start + 0.01;
                             audio.currentTime = seek;
-                            setActiveAyah(repeatFrom);
+                            setActiveAyah(selectedStartAyah);
                         }
                     } else if (t < startSeg.start) {
                         audio.currentTime = startSeg.start + 0.01;
@@ -510,12 +646,7 @@ export default function SurahPage() {
         if (activeAyah == null) return;
         if (!autoScrollEnabled) return;
         
-        // Don't scroll on initial load (first verse)
-        if (!hasScrolledOnce.current && activeAyah === 1) {
-            hasScrolledOnce.current = true;
-            console.log('[Auto-scroll] Skipping initial scroll for verse 1');
-            return;
-        }
+        // Always allow initial scroll (including verse 1)
         
         // Use setTimeout to ensure DOM is ready and avoid rapid scroll conflicts
         const scrollTimeout = setTimeout(() => {
@@ -669,7 +800,7 @@ export default function SurahPage() {
                         <a 
                             href={audioUrl} 
                             download 
-                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                            className="px-3 py-2 sm:px-4 sm:py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs sm:text-sm font-medium transition-colors"
                         >
                             Download
                         </a>
@@ -809,7 +940,7 @@ export default function SurahPage() {
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         onClick={togglePlayPause}
-                                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105"
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 text-sm sm:text-base"
                                     >
                                         {isPlaying ? '⏸ Pause' : '▶ Play'}
                                     </button>
@@ -821,23 +952,25 @@ export default function SurahPage() {
                                             setTimeEnd("");
                                             setTimeout(() => playFromRange(), 50);
                                         }}
-                                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105"
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 text-sm sm:text-base"
                                     >
                                         🔁 Repeat 3x
                                     </button>
                                     <button
-                                        onClick={goToPrevVerse}
-                                        disabled={!activeAyah || activeAyah <= 1}
-                                        className="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        onClick={() => seekBySeconds(-5)}
+                                        disabled={!audioUrl}
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                                        title="Rewind 5 seconds"
                                     >
-                                        ⬅ Previous
+                                        ⬅ -5s
                                     </button>
                                     <button
-                                        onClick={goToNextVerse}
-                                        disabled={!activeAyah || activeAyah >= verses.length}
-                                        className="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        onClick={() => seekBySeconds(5)}
+                                        disabled={!audioUrl}
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                                        title="Forward 5 seconds"
                                     >
-                                        Next ➡
+                                        +5s ➡
                                     </button>
                                 </div>
                             </div>
@@ -1027,17 +1160,17 @@ export default function SurahPage() {
 
                                         {/* Verse Content */}
                                         {showArabic && (
-                                            <div className="text-3xl sm:text-4xl leading-loose mb-4 font-arabic" dir="rtl">
+                                            <div className="text-2xl sm:text-4xl leading-loose mb-4 font-arabic" dir="rtl">
                                                 {v.arabic}
                                             </div>
                                         )}
                                         {showTransliteration && (
-                                            <div className="text-lg sm:text-xl text-gray-800 dark:text-gray-200 mb-3 font-medium">
+                                            <div className="text-base sm:text-xl text-gray-800 dark:text-gray-200 mb-3 font-medium">
                                                 {v.transliteration}
                                             </div>
                                         )}
                                         {showTranslation && (
-                                            <div className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+                                            <div className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
                                                 {v.translation || '—'}
                                             </div>
                                         )}

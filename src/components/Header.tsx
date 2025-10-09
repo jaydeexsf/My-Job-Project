@@ -8,10 +8,10 @@ import clsx from "clsx";
 
 const navigation = [
   { name: "Voice Search", href: "/" },
-  { name: "Identify", href: "/identify" },
+  // { name: "Identify", href: "/identify" }, // temporarily hidden
   { name: "Bookmarks", href: "/bookmarks" },
   { name: "Recite", href: "/recite" },
-  { name: "History", href: "/history" },
+  // { name: "History", href: "/history" }, // temporarily hidden
 ];
 
 export default function Header() {
@@ -68,28 +68,36 @@ export default function Header() {
 					</div>
 				</div>
 
-				{/* Mobile menu */}
+				{/* Mobile menu (overlay, does not push content) */}
 				{mobileMenuOpen && (
-					<div className="md:hidden border-t border-gray-200/20 dark:border-gray-700/20">
-						<div className="px-2 pt-2 pb-3 space-y-1">
-							{navigation.map((item) => (
-								<Link
-									key={item.name}
-									href={item.href}
-									onClick={() => {
-										console.log('Button clicked: Mobile navigation to', item.name, item.href);
-										setMobileMenuOpen(false);
-									}}
-									className={clsx(
-										"block px-3 py-2 rounded-md text-base font-medium transition-colors",
-										pathname === item.href
-											? "bg-emerald-600 text-white"
-											: "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
-									)}
-								>
-									{item.name}
-								</Link>
-							))}
+					<div className="md:hidden">
+						{/* Backdrop */}
+						<div 
+							onClick={() => setMobileMenuOpen(false)}
+							className="fixed inset-0 z-40 bg-black/20 dark:bg-black/40"
+						/>
+						{/* Panel */}
+						<div className="fixed top-16 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200/40 dark:border-gray-700/40 shadow-lg">
+							<div className="px-3 py-2 space-y-1">
+								{navigation.map((item) => (
+									<Link
+										key={item.name}
+										href={item.href}
+										onClick={() => {
+											console.log('Button clicked: Mobile navigation to', item.name, item.href);
+											setMobileMenuOpen(false);
+										}}
+										className={clsx(
+											"block px-3 py-2 rounded-md text-base font-medium transition-colors",
+											pathname === item.href
+												? "bg-emerald-600 text-white"
+												: "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+										)}
+									>
+										{item.name}
+									</Link>
+								))}
+							</div>
 						</div>
 					</div>
 				)}
