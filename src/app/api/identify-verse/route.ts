@@ -121,7 +121,7 @@ async function enhanceVerseDetails(verse: any) {
     return {
       ...verse,
       enhanced: false,
-      enhancementError: error.message
+      enhancementError: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Error in verse identification:', error);
     return NextResponse.json(
-      { error: 'Failed to process audio', details: error.message },
+      { error: 'Failed to process audio', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -202,7 +202,7 @@ export async function PUT(request: NextRequest) {
     const base64Audio = `data:${audioFile.type};base64,${buffer.toString('base64')}`;
 
     // Process the audio
-    const identifiedVerse = await identifyVerseFromAudio(base64Audio);
+    const identifiedVerse = await identifyVerseFromAudio(base64Audio, audioFile.type);
     const enhancedVerse = await enhanceVerseDetails(identifiedVerse);
 
     console.log('Identify Verse API Response - PUT:', enhancedVerse);
