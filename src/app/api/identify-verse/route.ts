@@ -198,8 +198,8 @@ export async function PUT(request: NextRequest) {
 
     // Convert file to base64
     const arrayBuffer = await audioFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Audio = `data:${audioFile.type};base64,${buffer.toString('base64')}`;
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const base64Audio = `data:${audioFile.type};base64,${btoa(String.fromCharCode(...uint8Array))}`;
 
     // Process the audio
     const identifiedVerse = await identifyVerseFromAudio(base64Audio, audioFile.type);

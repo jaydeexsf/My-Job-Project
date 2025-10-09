@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       { 
         success: false, 
         error: 'Quran API test failed', 
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error occurred'
       },
       { status: 500 }
     );
