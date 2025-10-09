@@ -729,7 +729,7 @@ export default function SurahPage() {
 
             {/* Audio Player */}
             {audioUrl && (
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div className="mb-6 rounded-xl shadow-lg border p-4 bg-white/5 dark:bg-white/5 border-white/10 dark:border-white/10 backdrop-blur">
                     <audio ref={audioRef} src={audioUrl} preload="metadata" style={{ display: 'none' }} />
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <div className="flex-1 w-full">
@@ -802,7 +802,10 @@ export default function SurahPage() {
                             download 
                             className="px-3 py-2 sm:px-4 sm:py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs sm:text-sm font-medium transition-colors"
                         >
-                            Download
+                            <span className="inline-flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                                <span>Download</span>
+                            </span>
                         </a>
                     </div>
                 </div>
@@ -864,7 +867,10 @@ export default function SurahPage() {
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                 >
-                    📖 Memorize
+                    <span className="inline-flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v13H6.5A2.5 2.5 0 004 19.5V4z"/></svg>
+                        <span>Memorize</span>
+                    </span>
                 </button>
                 <button 
                     onClick={() => setTab('flashcard')} 
@@ -874,7 +880,10 @@ export default function SurahPage() {
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                 >
-                    🎴 Flashcards
+                    <span className="inline-flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7h13a2 2 0 012 2v9a2 2 0 01-2 2H3V7zm18-3H8a2 2 0 00-2 2v1h12a2 2 0 012 2v10h1a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+                        <span>Flashcards</span>
+                    </span>
                 </button>
                 <button 
                     onClick={() => setTab('quiz')} 
@@ -884,7 +893,10 @@ export default function SurahPage() {
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                 >
-                    ✅ Quiz
+                    <span className="inline-flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-8 8h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span>Quiz</span>
+                    </span>
                 </button>
             </div>
 
@@ -935,14 +947,21 @@ export default function SurahPage() {
 
                         {/* Beginner Mode Controls */}
                         {beginnerMode && (
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                            <div className="rounded-lg p-4 border bg-white/5 dark:bg-white/5 border-white/10 dark:border-white/10 backdrop-blur">
                                 <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-3 text-sm">Simple Controls</h4>
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         onClick={togglePlayPause}
                                         className="px-3 py-2 sm:px-5 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 text-sm sm:text-base"
                                     >
-                                        {isPlaying ? '⏸ Pause' : '▶ Play'}
+                                        <span className="inline-flex items-center gap-2">
+                                            {isPlaying ? (
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                                            ) : (
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                            )}
+                                            <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                                        </span>
                                     </button>
                                     <button
                                         onClick={() => { 
@@ -952,25 +971,28 @@ export default function SurahPage() {
                                             setTimeEnd("");
                                             setTimeout(() => playFromRange(), 50);
                                         }}
-                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 text-sm sm:text-base"
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 text-sm sm:text-base inline-flex items-center gap-2"
                                     >
-                                        🔁 Repeat 3x
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v6a4 4 0 004 4h8m4-6V5a4 4 0 00-4-4H8m0 0l3 3M8 1L5 4"/></svg>
+                                        <span>Repeat 3x</span>
                                     </button>
                                     <button
                                         onClick={() => seekBySeconds(-5)}
                                         disabled={!audioUrl}
-                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base inline-flex items-center gap-2"
                                         title="Rewind 5 seconds"
                                     >
-                                        ⬅ -5s
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l-7-7 7-7"/></svg>
+                                        <span>-5s</span>
                                     </button>
                                     <button
                                         onClick={() => seekBySeconds(5)}
                                         disabled={!audioUrl}
-                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                                        className="px-3 py-2 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base inline-flex items-center gap-2"
                                         title="Forward 5 seconds"
                                     >
-                                        +5s ➡
+                                        <span>+5s</span>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5l7 7-7 7"/></svg>
                                     </button>
                                 </div>
                             </div>
@@ -1113,9 +1135,24 @@ export default function SurahPage() {
                                                 </div>
                                                 {status !== 'not-started' && (
                                                     <span className="text-xs px-2 py-1 rounded-full font-medium bg-white dark:bg-gray-800 border">
-                                                        {status === 'learning' && '📚 Learning'}
-                                                        {status === 'reviewing' && '🔄 Reviewing'}
-                                                        {status === 'memorized' && '✅ Memorized'}
+                                                {status === 'learning' && (
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6l-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h4l2-2h6a2 2 0 002-2V6a2 2 0 00-2-2h-6z"/></svg>
+                                                        <span>Learning</span>
+                                                    </span>
+                                                )}
+                                                {status === 'reviewing' && (
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-7 9 9 0 00-9-9H8"/></svg>
+                                                        <span>Reviewing</span>
+                                                    </span>
+                                                )}
+                                                {status === 'memorized' && (
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                                        <span>Memorized</span>
+                                                    </span>
+                                                )}
                                                     </span>
                                                 )}
                                             </div>
@@ -1131,7 +1168,7 @@ export default function SurahPage() {
                                                     }`}
                                                     title="Mark as Learning"
                                                 >
-                                                    📚
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6l-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h4l2-2h6a2 2 0 002-2V6a2 2 0 00-2-2h-6z"/></svg>
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); updateVerseStatus(v.ayah, 'reviewing'); }}
@@ -1142,7 +1179,7 @@ export default function SurahPage() {
                                                     }`}
                                                     title="Mark as Reviewing"
                                                 >
-                                                    🔄
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-7 9 9 0 00-9-9H8"/></svg>
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); updateVerseStatus(v.ayah, 'memorized'); }}
@@ -1153,7 +1190,7 @@ export default function SurahPage() {
                                                     }`}
                                                     title="Mark as Memorized"
                                                 >
-                                                    ✅
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
                                                 </button>
                                             </div>
                                         </div>

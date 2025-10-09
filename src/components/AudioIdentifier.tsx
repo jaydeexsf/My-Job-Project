@@ -507,7 +507,7 @@ export default function AudioIdentifier() {
                   </span>
                 </div>
                 <p className="text-gray-700 dark:text-gray-300 italic">
-                  "{results.transcription}"
+                  &ldquo;{results.transcription}&rdquo;
                 </p>
               </div>
             )}
