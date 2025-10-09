@@ -248,7 +248,7 @@ export async function POST_ASSEMBLYAI(request: NextRequest) {
   } catch (error) {
     console.error('❌ AssemblyAI error:', error);
     return NextResponse.json(
-      { error: 'Failed to process audio with AssemblyAI', details: error.message },
+      { error: 'Failed to process audio with AssemblyAI', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
