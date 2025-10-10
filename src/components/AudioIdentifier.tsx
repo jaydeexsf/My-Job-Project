@@ -285,12 +285,13 @@ export default function AudioIdentifier() {
 
       // Convert audio to base64 for sending to API
       const reader = new FileReader();
+      const blob = audioBlob; // Store in local variable for TypeScript
       reader.onloadend = async () => {
         const base64Audio = reader.result as string;
         
         console.log('📊 Audio Analysis Details:');
-        console.log('  - Audio size:', (audioBlob.size / 1024).toFixed(2), 'KB');
-        console.log('  - Audio type:', audioBlob.type);
+        console.log('  - Audio size:', (blob!.size / 1024).toFixed(2), 'KB');
+        console.log('  - Audio type:', blob!.type);
         console.log('  - Base64 length:', base64Audio.length);
         console.log('  - Recording duration:', formatTime(recordingTime));
         
@@ -302,7 +303,7 @@ export default function AudioIdentifier() {
           },
           body: JSON.stringify({
             audioData: base64Audio,
-            mimeType: audioBlob.type
+            mimeType: blob!.type
           }),
         });
         
@@ -320,7 +321,7 @@ export default function AudioIdentifier() {
         setResults(result);
       };
       
-      reader.readAsDataURL(audioBlob);
+      reader.readAsDataURL(blob!);
       
     } catch (err) {
       setError("Failed to analyze audio. Please try again.");
