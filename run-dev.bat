@@ -1,6 +1,9 @@
 @echo off
+setlocal
+
 echo Setting up Node.js path...
-set PATH=%PATH%;%USERPROFILE%\Documents\node-v22.20.0-win-x64
+set NODE_PATH=%~dp0nodejs\node-v20.11.0-win-x64
+set PATH=%NODE_PATH%;%PATH%
 
 echo Starting Quran App Development Server...
 echo.
@@ -16,6 +19,6 @@ echo.
 echo Press Ctrl+C to stop the server
 echo.
 
-npm run dev
+call npm run dev
 
 pause

@@ -2,8 +2,8 @@
 setlocal
 
 :: Set the path to the local Node.js installation
-set NODE_PATH=%~dp0nodejs\node-v20.11.1-win-x64
-set PATH=%NODE_PATH%;%NODE_PATH%\node_modules\npm\bin;%PATH%
+set NODE_PATH=%~dp0nodejs\node-v20.11.0-win-x64
+set PATH=%NODE_PATH%;%PATH%
 
 :: Check if package.json exists
 if not exist package.json (
