@@ -23,6 +23,7 @@ declare module 'react-speech-recognition' {
     startListening(options?: {
       continuous?: boolean;
       language?: string;
+      interimResults?: boolean;
     }): Promise<void>;
     stopListening(): void;
     abortListening(): void;
