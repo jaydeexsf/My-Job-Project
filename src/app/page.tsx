@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   BookOpenIcon
@@ -359,7 +359,7 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {chapters.map((chapter) => (
-                <Link key={chapter.id} href={`/surah/${chapter.id}`} className="group block p-4 sm:p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300" onClick={(e) => {
+                <Link key={chapter.id} href={`/surah/${chapter.id}`} className="group block p-4 sm:p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300" onClick={() => {
                   try {
                     const slug = (chapter.name_simple || '').toLowerCase().replace(/\s+/g, '-');
                     console.log('[Chapter Click]', { id: chapter.id, name: chapter.name_simple, slug });
