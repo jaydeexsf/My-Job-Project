@@ -1,14 +1,10 @@
 "use client";
 
-import VoiceSearch from "@/components/VoiceSearch";
 import AudioPlayer from "@/components/AudioPlayer";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { 
-  MicrophoneIcon, 
   BookOpenIcon, 
-  ChartBarIcon,
-  MusicalNoteIcon,
   PlayIcon,
   PauseIcon
 } from "@heroicons/react/24/outline";
@@ -267,32 +263,30 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
+      <section className="relative py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="mb-8">
-            <h1 className="text-3xl sm:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-7xl font-bold mb-3 sm:mb-4 lg:mb-6">
               <span className="text-emerald-600 dark:text-emerald-400">
                 Interactive
               </span>
               <br />
               <span className="text-gray-900 dark:text-white">Quran Learning</span>
             </h1>
-            <p className="text-base sm:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
-              Experience modern Quranic study with voice search, 
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed px-4">
+              Experience modern Quranic study with intelligent search, 
               personalized bookmarks, and beautiful recitations.
             </p>
           </div>
-
-          {/* Stats removed per request */}
         </div>
       </section>
 
-      {/* Search Section with Mic */}
+      {/* Search Section */}
       <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-white">Search the Quran</h2>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Type or press the mic and speak a chapter, verse, or topic</p>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Type a chapter, verse, or topic to find what you're looking for</p>
           </div>
           <div className="flex items-stretch gap-2">
             <input
@@ -309,39 +303,10 @@ export default function Home() {
               }}
             />
             <button
-              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium text-sm sm:text-base"
+              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm sm:text-base"
               onClick={() => handleSearch(searchQuery)}
             >
               Search
-            </button>
-            <button
-              aria-label="Speak to search"
-              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm sm:text-base"
-              onClick={() => {
-                try {
-                  // @ts-expect-error - vendor-prefixed in some browsers
-                  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                  if (!SpeechRecognition) {
-                    console.warn('SpeechRecognition not supported');
-                    return;
-                  }
-                  const rec = new SpeechRecognition();
-                  rec.lang = 'en-US';
-                  rec.interimResults = false;
-                  rec.maxAlternatives = 1;
-                  rec.onresult = (event: any) => {
-                    const text = String(event.results?.[0]?.[0]?.transcript || '').trim();
-                    setSearchQuery(text);
-                    if (text) handleSearch(text);
-                  };
-                  rec.onerror = (e: any) => console.error('[Speech Error]', e);
-                  rec.start();
-                } catch (err) {
-                  console.error('[Mic Click Error]', err);
-                }
-              }}
-            >
-              <span className="inline-flex items-center gap-2"><MicrophoneIcon className="w-5 h-5" /> Speak</span>
             </button>
           </div>
 
@@ -349,14 +314,14 @@ export default function Home() {
           {externalLoading && (
             <div className="mt-6 flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
               <div className="w-5 h-5 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
-              <span>Searching verses for “{externalQuery}”...</span>
+              <span>Searching verses for "{externalQuery}"...</span>
             </div>
           )}
 
           {!externalLoading && externalResults.length > 0 && (
             <div className="mt-6">
               <div className="mb-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                No chapter names matched “{externalQuery}”. Showing verse matches instead ({externalTotal}).
+                No chapter names matched "{externalQuery}". Showing verse matches instead ({externalTotal}).
               </div>
               <div className="space-y-3">
                 {externalResults.map((r: any, idx: number) => (
@@ -520,33 +485,35 @@ export default function Home() {
       )}
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900 dark:text-white">
-              Powerful Features for Deep Learning
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-white">
+              Comprehensive Quran Learning Platform
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              Everything you need to enhance your Quranic study and recitation practice
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-4">
+              Advanced tools and features designed to enhance your Quranic study experience
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Voice Search Feature */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {/* Intelligent Search Feature */}
             <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
               <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <MicrophoneIcon className="w-6 h-6 text-white" />
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Voice Search</h3>
+              <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Intelligent Search</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
-                Search the entire Quran using your voice in Arabic or English. Find verses by speaking naturally.
+                Advanced search across chapters and verses with fuzzy matching and instant results.
               </p>
               <Link 
                 href="/" 
-                onClick={() => console.log('Button clicked: Try Voice Search')}
+                onClick={() => console.log('Button clicked: Try Search')}
                 className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
               >
-                Try Voice Search →
+                Try Search →
               </Link>
             </div>
 
@@ -568,39 +535,61 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Recitation Analysis */}
-            <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
-              <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <ChartBarIcon className="w-6 h-6 text-white" />
+            {/* Recitation Practice */}
+            <div className="group p-6 sm:p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <BookOpenIcon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Recitation Analysis</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
-                Get real-time feedback on your recitation with accuracy scores and pronunciation guidance.
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900 dark:text-white">Recitation Practice</h3>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mb-4">
+                Practice your recitation with audio guidance and get real-time feedback on pronunciation.
               </p>
               <Link 
                 href="/recite" 
                 onClick={() => console.log('Button clicked: Start Reciting')}
-                className="text-slate-600 dark:text-slate-400 font-medium hover:underline"
+                className="text-blue-600 dark:text-blue-400 font-medium hover:underline text-sm sm:text-base"
               >
                 Start Reciting →
               </Link>
             </div>
 
-            {/* Audio Identifier - Shazam-like Feature */}
-            <div className="group p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 md:col-span-2 lg:col-span-1">
+            {/* Verse Identifier */}
+            <div className="group p-6 sm:p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
               <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <MusicalNoteIcon className="w-6 h-6 text-white" />
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M9 12h6m-6 4h6" />
+                </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Verse Identifier</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
-                Like Shazam for Quran! Record or upload any recitation and instantly identify the verse.
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900 dark:text-white">Verse Identifier</h3>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mb-4">
+                Like Shazam for Quran! Record any recitation and instantly identify the verse.
               </p>
               <Link 
                 href="/identify" 
                 onClick={() => console.log('Button clicked: Identify Verse')}
-                className="text-purple-600 dark:text-purple-400 font-medium hover:underline"
+                className="text-purple-600 dark:text-purple-400 font-medium hover:underline text-sm sm:text-base"
               >
                 Identify Verse →
+              </Link>
+            </div>
+
+            {/* Study History */}
+            <div className="group p-6 sm:p-8 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+              <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900 dark:text-white">Study History</h3>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mb-4">
+                Track your learning progress and revisit previously studied verses and chapters.
+              </p>
+              <Link 
+                href="/history" 
+                onClick={() => console.log('Button clicked: View History')}
+                className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline text-sm sm:text-base"
+              >
+                View History →
               </Link>
             </div>
           </div>

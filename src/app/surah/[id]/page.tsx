@@ -22,7 +22,8 @@ export default function SurahPage() {
     const [loading, setLoading] = useState(true);
     const [activeAyah, setActiveAyah] = useState<number | null>(null);
     const [tab, setTab] = useState<'memorize' | 'flashcard' | 'quiz'>('memorize');
-    const [repeatCount, setRepeatCount] = useState<number>(3);
+    const [repeatCount, setRepeatCount] = useState<number>(1);
+    const [repeatMode, setRepeatMode] = useState<boolean>(false);
     const repeatCounterRef = useRef<number>(0);
     const loopsDoneRef = useRef<number>(0);
     const lastLoopAtMsRef = useRef<number>(0);
@@ -65,9 +66,10 @@ export default function SurahPage() {
     const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
     const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
-    const hasScrolledOnce = useRef<boolean>(false);
     const lastLoggedSecondRef = useRef<number>(-1);
     const lastAnnouncedAyahRef = useRef<number | null>(null);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const verseChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const segmentByAyah = useMemo(() => {
         const map: Record<number, { start: number; end: number }> = {};
         for (const s of segments) map[s.ayah] = { start: s.start, end: s.end };
@@ -461,13 +463,15 @@ export default function SurahPage() {
             loopsDoneRef.current = 0;
             lastLoopAtMsRef.current = 0;
         } else {
-            // Default behavior: start from beginning
+            // Default behavior: start from beginning (normal playback)
             console.log(`[Play] Starting from beginning`);
             audio.currentTime = 0;
             audio.play().then(() => { setIsPlaying(true); }).catch((err) => console.error('Play failed:', err));
             repeatCounterRef.current = 0;
             loopsDoneRef.current = 0;
             lastLoopAtMsRef.current = 0;
+            // Disable repeat mode for normal playback
+            setRepeatMode(false);
         }
     };
 
@@ -487,6 +491,10 @@ export default function SurahPage() {
         } else {
             audio.pause();
             setIsPlaying(false);
+        }
+        // Disable repeat mode for normal play/pause
+        if (!repeatMode) {
+            setRepeatMode(false);
         }
     };
 
@@ -517,28 +525,43 @@ export default function SurahPage() {
             const t = audio.currentTime;
             setCurrentTimeSec(t);
 
-            // Handle initial window before first segment: lock to verse 1 once so auto-scroll doesn't skip it
+            // Handle initial window before first segment: lock to verse 1 much longer
             const firstStart = segments.length > 0 ? segments[0].start : 0;
-            if (t < (firstStart + 0.15) && lastAnnouncedAyahRef.current == null) {
+            if (t < (firstStart + 1.0) && lastAnnouncedAyahRef.current == null) {
                 if (activeAyah !== 1) {
                     setActiveAyah(1);
                 }
                 lastAnnouncedAyahRef.current = 1;
+                console.log(`[Initial] Keeping verse 1 active at ${formatTime(t)}`);
             }
             
             // find segment containing t (prefer real segments; fall back to estimates)
             const allSegs = segments.length > 0 ? segments : estimatedSegments;
             if (allSegs.length > 0) {
-                const seg = allSegs.find(s => t >= s.start && t <= s.end);
+                // Much more conservative verse detection - wait until we're well into the segment
+                const seg = allSegs.find(s => {
+                    // Only switch if we're at least 1 second into the segment (much more conservative)
+                    return t >= (s.start + 1.0) && t <= (s.end - 0.5);
+                });
+                
                 if (seg && seg.ayah !== activeAyah && seg.ayah !== lastAnnouncedAyahRef.current) {
-                    const verseText = verses.find(v => v.ayah === seg.ayah)?.arabic || '';
-                    const segDur = (seg.end - seg.start).toFixed(2);
-                    console.log(`[Verse Change] ${formatTime(t)} → Verse ${seg.ayah} (was ${activeAyah}) | ${formatTime(seg.start)} → ${formatTime(seg.end)} (${segDur}s)`);
-                    if (verseText) {
-                        console.log(`[Verse ${seg.ayah} Text]`, verseText);
+                    console.log(`[Verse Detection] Found segment for verse ${seg.ayah} at ${formatTime(t)} (segment: ${formatTime(seg.start)}-${formatTime(seg.end)})`);
+                    
+                    // Debounce verse changes to prevent rapid switching
+                    if (verseChangeTimeoutRef.current) {
+                        clearTimeout(verseChangeTimeoutRef.current);
                     }
-                    setActiveAyah(seg.ayah);
-                    lastAnnouncedAyahRef.current = seg.ayah;
+                    
+                    verseChangeTimeoutRef.current = setTimeout(() => {
+                        const verseText = verses.find(v => v.ayah === seg.ayah)?.arabic || '';
+                        const segDur = (seg.end - seg.start).toFixed(2);
+                        console.log(`[Verse Change] ${formatTime(t)} → Verse ${seg.ayah} (was ${activeAyah}) | ${formatTime(seg.start)} → ${formatTime(seg.end)} (${segDur}s)`);
+                        if (verseText) {
+                            console.log(`[Verse ${seg.ayah} Text]`, verseText);
+                        }
+                        setActiveAyah(seg.ayah);
+                        lastAnnouncedAyahRef.current = seg.ayah;
+                    }, 500); // Increased debounce to 500ms
                 }
             }
 
@@ -564,8 +587,8 @@ export default function SurahPage() {
                 }
             }
 
-            // Repeat logic: time range first if enabled, else ayah range
-            if (useTimeRange && timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec) {
+            // Repeat logic: only when repeat mode is enabled
+            if (repeatMode && useTimeRange && timeStartSec != null && timeEndSec != null && timeEndSec > timeStartSec) {
                 if (t > timeEndSec - 0.05) {
                     const now = Date.now();
                     if (loopsDoneRef.current < repeatCount - 1 && now - lastLoopAtMsRef.current > 700) {
@@ -577,7 +600,7 @@ export default function SurahPage() {
                 } else if (t < timeStartSec) {
                     audio.currentTime = Math.max(0, timeStartSec) + 0.01;
                 }
-            } else if (segments.length > 0) {
+            } else if (repeatMode && segments.length > 0) {
                 // Fallbacks: repeat current ayah if no explicit range is set
                 const selectedStartAyah = (repeatFrom ?? activeAyah ?? 1);
                 const selectedEndAyah = (repeatTo ?? selectedStartAyah);
@@ -622,7 +645,7 @@ export default function SurahPage() {
             audio.removeEventListener('loadedmetadata', onLoaded);
             audio.removeEventListener('durationchange', onLoaded);
         };
-    }, [audioUrl, segments, repeatCount, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, playbackSpeed]);
+    }, [audioUrl, segments, repeatCount, repeatMode, segmentByAyah, useTimeRange, timeStartSec, timeEndSec, playbackSpeed]);
 
     // Pause when page loses visibility and cleanup on unmount
     useEffect(() => {
@@ -638,37 +661,58 @@ export default function SurahPage() {
             if (audioRef.current) {
                 try { audioRef.current.pause(); } catch {}
             }
+            // Clear scroll timeout
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+            // Clear verse change timeout
+            if (verseChangeTimeoutRef.current) {
+                clearTimeout(verseChangeTimeoutRef.current);
+            }
         };
     }, []);
 
-    // Auto-scroll the active ayah into view smoothly (toggleable)
-    useEffect(() => {
-        if (activeAyah == null) return;
+    // Smart auto-scroll that follows audio playback
+    const scrollToActiveVerse = (ayah: number, smooth: boolean = true) => {
         if (!autoScrollEnabled) return;
         
-        // Always allow initial scroll (including verse 1)
+        // Clear any existing scroll timeout
+        if (scrollTimeoutRef.current) {
+            clearTimeout(scrollTimeoutRef.current);
+        }
         
-        // Use setTimeout to ensure DOM is ready and avoid rapid scroll conflicts
-        const scrollTimeout = setTimeout(() => {
-            const el = verseRefs.current[activeAyah];
-            if (el) {
+        // Use a much longer delay to ensure audio has settled and avoid premature scrolling
+        scrollTimeoutRef.current = setTimeout(() => {
+            const element = verseRefs.current[ayah];
+            if (element) {
                 try {
-                    console.log('[Auto-scroll] Scrolling to verse', activeAyah);
-                    el.scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'center',
-                        inline: 'nearest'
-                    });
-                    hasScrolledOnce.current = true;
+                    // Get the element's position relative to viewport
+                    const rect = element.getBoundingClientRect();
+                    const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+                    
+                    // Only scroll if the element is not fully visible
+                    if (!isVisible) {
+                        element.scrollIntoView({ 
+                            behavior: smooth ? 'smooth' : 'instant',
+                            block: 'center',
+                            inline: 'nearest'
+                        });
+                        console.log(`[Auto-scroll] Scrolled to verse ${ayah}`);
+                    } else {
+                        console.log(`[Auto-scroll] Verse ${ayah} already visible, skipping scroll`);
+                    }
                 } catch (error) {
                     console.error('[Auto-scroll] Error:', error);
                 }
-            } else {
-                console.warn('[Auto-scroll] Element not found for verse', activeAyah);
             }
-        }, 100);
+        }, 800); // Much longer delay - 800ms
+    };
 
-        return () => clearTimeout(scrollTimeout);
+    // Auto-scroll when active ayah changes (synced with audio)
+    useEffect(() => {
+        if (activeAyah !== null && autoScrollEnabled) {
+            scrollToActiveVerse(activeAyah);
+        }
     }, [activeAyah, autoScrollEnabled]);
 
     // Next/Previous verse navigation
@@ -731,100 +775,100 @@ export default function SurahPage() {
             {audioUrl && (
                 <div className="mb-6 rounded-xl shadow-lg border p-4 bg-white/5 dark:bg-white/5 border-white/10 dark:border-white/10 backdrop-blur">
                     <audio ref={audioRef} src={audioUrl} preload="metadata" style={{ display: 'none' }} />
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                        <div className="flex-1 w-full">
-                            <div className="flex items-center gap-3 mb-3">
-                                <button 
-                                    onClick={togglePlayPause}
-                                    className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-105"
-                                >
-                                    {isPlaying ? (
-                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
-                                    ) : (
-                                        <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                    )}
-                                </button>
-                                <div className="flex-1">
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Verse {activeAyah || 1} of {verses.length}
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        {formatTime(currentTimeSec)} / {formatTime(durationSec)}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Audio Progress Bar */}
-                            <div className="mb-3">
-                                <div 
-                                    className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 cursor-pointer overflow-hidden"
-                                    onClick={(e) => {
-                                        if (!audioRef.current || !durationSec) return;
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        const x = e.clientX - rect.left;
-                                        const percentage = x / rect.width;
-                                        const newTime = percentage * durationSec;
-                                        audioRef.current.currentTime = newTime;
-                                    }}
-                                >
-                                    <div 
-                                        className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-100"
-                                        style={{ width: `${durationSec > 0 ? (currentTimeSec / durationSec) * 100 : 0}%` }}
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Playback Speed */}
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Speed:</span>
-                                {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
-                                    <button
-                                        key={speed}
-                                        onClick={() => {
-                                            setPlaybackSpeed(speed);
-                                            if (audioRef.current) {
-                                                audioRef.current.playbackRate = speed;
-                                            }
-                                        }}
-                                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                                            playbackSpeed === speed
-                                                ? 'bg-emerald-600 text-white shadow-md'
-                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                        }`}
-                                    >
-                                        {speed}x
-                                    </button>
-                                ))}
+                    
+                    {/* Audio Loading State */}
+                    {!durationSec && (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin"></div>
+                                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">Loading audio...</span>
                             </div>
                         </div>
-                        <a 
-                            href={audioUrl} 
-                            download 
-                            className="px-3 py-2 sm:px-4 sm:py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs sm:text-sm font-medium transition-colors"
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
-                                <span>Download</span>
-                            </span>
-                        </a>
-                    </div>
+                    )}
+                    
+                    {/* Audio Controls - Only show when loaded */}
+                    {durationSec > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
+                            <div className="flex-1 w-full">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <button 
+                                        onClick={togglePlayPause}
+                                        className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-105"
+                                    >
+                                        {isPlaying ? (
+                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                                        ) : (
+                                            <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                        )}
+                                    </button>
+                                    <div className="flex-1">
+                                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Verse {activeAyah || 1} of {verses.length}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            {formatTime(currentTimeSec)} / {formatTime(durationSec)}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Audio Progress Bar */}
+                                <div className="mb-3">
+                                    <div 
+                                        className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 cursor-pointer overflow-hidden"
+                                        onClick={(e) => {
+                                            if (!audioRef.current || !durationSec) return;
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const x = e.clientX - rect.left;
+                                            const percentage = x / rect.width;
+                                            const newTime = percentage * durationSec;
+                                            audioRef.current.currentTime = newTime;
+                                        }}
+                                    >
+                                        <div 
+                                            className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-100"
+                                            style={{ width: `${durationSec > 0 ? (currentTimeSec / durationSec) * 100 : 0}%` }}
+                                        />
+                                    </div>
+                                </div>
+                                
+                                {/* Playback Speed */}
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Speed:</span>
+                                    {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
+                                        <button
+                                            key={speed}
+                                            onClick={() => {
+                                                setPlaybackSpeed(speed);
+                                                if (audioRef.current) {
+                                                    audioRef.current.playbackRate = speed;
+                                                }
+                                            }}
+                                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                                playbackSpeed === speed
+                                                    ? 'bg-emerald-600 text-white shadow-md'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}
+                                        >
+                                            {speed}x
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <a 
+                                href={audioUrl} 
+                                download 
+                                className="px-3 py-2 sm:px-4 sm:py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs sm:text-sm font-medium transition-colors"
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                                    <span>Download</span>
+                                </span>
+                            </a>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Auto-scroll Toggle (sticky) */}
-            <div className="fixed bottom-4 right-4 z-20">
-                <button
-                    onClick={() => setAutoScrollEnabled(v => !v)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium shadow-md border transition-colors ${
-                        autoScrollEnabled
-                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                    title="Toggle auto-scroll"
-                >
-                    {autoScrollEnabled ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
-                </button>
-            </div>
             
             {!audioUrl && !loading && (
                 <div className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -842,18 +886,32 @@ export default function SurahPage() {
                 </div>
             )}
 
-            {/* Audio Analysis Indicator */}
-            {isAnalyzingAudio && (
-                <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin flex-shrink-0 mt-0.5"></div>
-                        <div>
-                            <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-1">Analyzing Audio...</h3>
-                            <p className="text-sm text-blue-700 dark:text-blue-400">
-                                Detecting verse boundaries using silence detection. This may take a moment.
-                            </p>
-                        </div>
-                    </div>
+            {/* Auto-scroll Toggle (sticky) */}
+            <div className="fixed bottom-4 right-4 z-20">
+                <button
+                    onClick={() => setAutoScrollEnabled(v => !v)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium shadow-lg border transition-all duration-200 ${
+                        autoScrollEnabled
+                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                    title="Toggle auto-scroll"
+                >
+                    <span className="inline-flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                        </svg>
+                        {autoScrollEnabled ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
+                    </span>
+                </button>
+            </div>
+
+            {/* Debug Info - Temporary */}
+            {process.env.NODE_ENV === 'development' && (
+                <div className="fixed top-4 right-4 z-20 bg-black/80 text-white p-2 rounded text-xs font-mono">
+                    <div>Active: {activeAyah}</div>
+                    <div>Time: {formatTime(currentTimeSec)}</div>
+                    <div>Segments: {segments.length}</div>
                 </div>
             )}
 
@@ -966,6 +1024,7 @@ export default function SurahPage() {
                                     <button
                                         onClick={() => { 
                                             setRepeatCount(3);
+                                            setRepeatMode(true);
                                             setUseTimeRange(true);
                                             setTimeStart("0:00");
                                             setTimeEnd("");

@@ -13,8 +13,7 @@ import {
   ExclamationTriangleIcon,
   BookOpenIcon,
   BookmarkIcon,
-  SpeakerWaveIcon,
-  MusicalNoteIcon
+  SpeakerWaveIcon
 } from "@heroicons/react/24/outline";
 
 interface IdentificationResult {
@@ -376,7 +375,7 @@ export default function AudioIdentifier() {
         <div className="mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="p-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl">
-              <MusicalNoteIcon className="w-8 h-8 text-white" />
+              <BookOpenIcon className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
               Quran Verse Identifier
@@ -456,7 +455,7 @@ export default function AudioIdentifier() {
               )}
             >
               <div className="w-6 h-6 flex items-center justify-center">
-                {isAnalyzing ? <MagnifyingGlassIcon className="w-6 h-6 animate-spin" /> : <MusicalNoteIcon className="w-6 h-6" />}
+                {isAnalyzing ? <MagnifyingGlassIcon className="w-6 h-6 animate-spin" /> : <BookOpenIcon className="w-6 h-6" />}
               </div>
               <span>
                 {isAnalyzing ? "Identifying Verse..." : "Identify Verse"}

@@ -1,7 +1,7 @@
 import AudioIdentifier from "@/components/AudioIdentifier";
 import Link from "next/link";
 import { 
-  MusicalNoteIcon,
+  BookOpenIcon,
   MicrophoneIcon,
   MagnifyingGlassIcon,
   BookOpenIcon,
@@ -35,7 +35,7 @@ export default function IdentifyPage() {
       <div className="max-w-4xl mx-auto text-center mb-12">
         <div className="flex flex-col items-center gap-4 mb-6">
           <div className="p-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl">
-            <MusicalNoteIcon className="w-12 h-12 text-white" />
+            <BookOpenIcon className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white text-center">
             Quran Verse Identifier
