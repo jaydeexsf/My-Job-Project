@@ -4,7 +4,6 @@ import {
   BookOpenIcon,
   MicrophoneIcon,
   MagnifyingGlassIcon,
-  BookOpenIcon,
   ArrowLeftIcon,
   BoltIcon,
   GlobeAltIcon,
