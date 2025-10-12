@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { 
   BookOpenIcon
@@ -32,15 +32,6 @@ export default function Home() {
     fetchChapters();
   }, []);
 
-  // Cleanup audio when component unmounts
-  useEffect(() => {
-    return () => {
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
-    };
-  }, [currentAudio]);
 
   const fetchChapters = async () => {
     console.log('Button clicked: Fetching chapters from API');

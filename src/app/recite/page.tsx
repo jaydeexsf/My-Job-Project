@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getMachineId } from "@/lib/machineId";
 import { getSurahName } from "@/lib/surahNames";
-import { Heart, Trophy, Mic, Upload, Star, Bookmark, Clock, TrendingUp } from "lucide-react";
+import { Heart, Trophy, Mic, Upload, Star, Bookmark, Clock } from "lucide-react";
 
 interface Recitation {
   _id: string;
