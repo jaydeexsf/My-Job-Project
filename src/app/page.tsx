@@ -1,12 +1,9 @@
 "use client";
 
-import AudioPlayer from "@/components/AudioPlayer";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
-  BookOpenIcon, 
-  PlayIcon,
-  PauseIcon
+  BookOpenIcon
 } from "@heroicons/react/24/outline";
 
 interface Chapter {
@@ -30,8 +27,6 @@ export default function Home() {
   const [externalPage, setExternalPage] = useState<number>(1);
   const [externalHasMore, setExternalHasMore] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
-  const [playingChapter, setPlayingChapter] = useState<number | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     fetchChapters();
@@ -286,7 +281,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-white">Search the Quran</h2>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Type a chapter, verse, or topic to find what you're looking for</p>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Type a chapter, verse, or topic to find what you&apos;re looking for</p>
           </div>
           <div className="flex items-stretch gap-2">
             <input
@@ -314,14 +309,14 @@ export default function Home() {
           {externalLoading && (
             <div className="mt-6 flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
               <div className="w-5 h-5 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
-              <span>Searching verses for "{externalQuery}"...</span>
+              <span>Searching verses for &quot;{externalQuery}&quot;...</span>
             </div>
           )}
 
           {!externalLoading && externalResults.length > 0 && (
             <div className="mt-6">
               <div className="mb-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                No chapter names matched "{externalQuery}". Showing verse matches instead ({externalTotal}).
+                No chapter names matched &quot;{externalQuery}&quot;. Showing verse matches instead ({externalTotal}).
               </div>
               <div className="space-y-3">
                 {externalResults.map((r: any, idx: number) => (
