@@ -64,4 +64,23 @@ export type CompetitionRecitation = InferSchemaType<typeof competitionRecitation
 export const CompetitionRecitationModel =
 	models.CompetitionRecitation || model("CompetitionRecitation", competitionRecitationSchema);
 
+// Surah Bookmark model: stores bookmarked surahs (chapters)
+const surahBookmarkSchema = new Schema(
+	{
+		userId: { type: String, required: true, index: true },
+		surah: { type: Number, required: true },
+		surahName: { type: String, required: true },
+		surahNameArabic: { type: String },
+		versesCount: { type: Number },
+		note: { type: String },
+	},
+	{ timestamps: true }
+);
+
+surahBookmarkSchema.index({ userId: 1, surah: 1 }, { unique: true });
+
+export type SurahBookmark = InferSchemaType<typeof surahBookmarkSchema>;
+export const SurahBookmarkModel =
+	models.SurahBookmark || model("SurahBookmark", surahBookmarkSchema);
+
 

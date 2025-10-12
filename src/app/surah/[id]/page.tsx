@@ -63,8 +63,8 @@ export default function SurahPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [segments, setSegments] = useState<{ ayah: number; start: number; end: number }[]>([]);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
-    const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+    const [isSurahBookmarked, setIsSurahBookmarked] = useState<boolean>(false);
+    const [bookmarkLoading, setBookmarkLoading] = useState<boolean>(false);
     const verseRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const lastLoggedSecondRef = useRef<number>(-1);
     const lastAnnouncedAyahRef = useRef<number | null>(null);
@@ -106,25 +106,57 @@ export default function SurahPage() {
         return est;
     }, [segments, verses]);
 
-    // Load memorization progress from localStorage
+    // Check if surah is bookmarked
     useEffect(() => {
-        const saved = localStorage.getItem(`memorization-${surahId}`);
-        if (saved) {
+        const checkBookmarkStatus = async () => {
             try {
-                setVerseStatus(JSON.parse(saved));
-            } catch {}
+                const response = await fetch('/api/surah-bookmarks');
+                const data = await response.json();
+                const bookmarks = data.data || [];
+                const isBookmarked = bookmarks.some((bookmark: any) => bookmark.surah === surahId);
+                setIsSurahBookmarked(isBookmarked);
+            } catch (error) {
+                console.error('Error checking bookmark status:', error);
+            }
+        };
+        
+        if (surahId && chapterName) {
+            checkBookmarkStatus();
         }
-        const today = new Date().toDateString();
-        const lastDate = localStorage.getItem('lastMemorizationDate');
-        if (lastDate === today) {
-            const count = parseInt(localStorage.getItem('versesMemorizedToday') || '0');
-            setVersesMemorizedToday(count);
-        } else {
-            localStorage.setItem('lastMemorizationDate', today);
-            localStorage.setItem('versesMemorizedToday', '0');
-            setVersesMemorizedToday(0);
+    }, [surahId, chapterName]);
+
+    // Toggle surah bookmark
+    const toggleSurahBookmark = async () => {
+        if (bookmarkLoading) return;
+        
+        setBookmarkLoading(true);
+        try {
+            if (isSurahBookmarked) {
+                // Remove bookmark
+                await fetch(`/api/surah-bookmarks?surah=${surahId}`, { method: 'DELETE' });
+                setIsSurahBookmarked(false);
+                console.log('Surah bookmark removed');
+            } else {
+                // Add bookmark
+                await fetch('/api/surah-bookmarks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        surah: surahId,
+                        surahName: chapterName,
+                        surahNameArabic: verses[0]?.arabic || '',
+                        versesCount: verses.length
+                    })
+                });
+                setIsSurahBookmarked(true);
+                console.log('Surah bookmarked');
+            }
+        } catch (error) {
+            console.error('Error toggling bookmark:', error);
+        } finally {
+            setBookmarkLoading(false);
         }
-    }, [surahId]);
+    };
 
     // Save memorization progress
     const updateVerseStatus = (ayah: number, status: MemorizationStatus) => {
@@ -743,6 +775,30 @@ export default function SurahPage() {
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                             {verses.length} verses • {memorizedCount} memorized ({progressPercent}%)
                         </p>
+                    </div>
+                    
+                    {/* Bookmark Button */}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={toggleSurahBookmark}
+                            disabled={bookmarkLoading}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                                isSurahBookmarked
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg'
+                                    : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+                            } ${bookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {bookmarkLoading ? (
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <svg className="w-4 h-4" fill={isSurahBookmarked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                </svg>
+                            )}
+                            <span className="text-sm">
+                                {isSurahBookmarked ? 'Bookmarked' : 'Bookmark Surah'}
+                            </span>
+                        </button>
                     </div>
                     
                     {/* Daily Goal Tracker */}
